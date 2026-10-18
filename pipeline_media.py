@@ -89,6 +89,8 @@ CAROUSEL_DIR = OUTPUT_DIR / "carousel"
 AUDIO_PATH = OUTPUT_DIR / "voiceover.mp3"
 SUBTITLE_PATH = OUTPUT_DIR / "subtitles.json"
 HERO_IMG_PATH = OUTPUT_DIR / "editorial_hero.jpg"
+SLIDE2_IMG_PATH = OUTPUT_DIR / "editorial_slide2.jpg"
+SLIDE3_IMG_PATH = OUTPUT_DIR / "editorial_verdict.jpg"
 FINAL_VIDEO_PATH = OUTPUT_DIR / "tiktok_reels_metrika.mp4"
 
 # Regulasi & Benchmark Ekonomi Resmi Indonesia
@@ -273,11 +275,35 @@ def fetch_latest_program_news(prog_cfg: Dict[str, Any]) -> Tuple[Dict[str, str],
     return primary_item, supporting
 
 
+
+ACRONYM_MAP = {
+    "BBCA": "Bank Central Asia BCA gedung kantor Jakarta",
+    "BBRI": "Bank Rakyat Indonesia BRI kantor gedung",
+    "BMRI": "Bank Mandiri kantor pusat Jakarta",
+    "BBNI": "Bank BNI kantor Jakarta",
+    "IHSG": "Bursa Efek Indonesia saham IDX trading board",
+    "MSCI": "Bursa Efek Indonesia pasar modal saham",
+    "BEI": "Bursa Efek Indonesia gedung IDX",
+    "KRL": "KRL Commuter Line Jabodetabek kereta stasiun",
+    "OJOL": "Pengemudi ojek online jalanan Jakarta motor",
+    "BPS": "Badan Pusat Statistik kantor Jakarta",
+    "ANTAM": "Emas batangan Logam Mulia Antam",
+    "TESLA": "Tesla Roadster electric car supercar",
+}
+
+def resolve_search_query(raw_query: str) -> str:
+    words = raw_query.upper().split()
+    for w in words:
+        clean_w = re.sub(r'[^A-Z]', '', w)
+        if clean_w in ACRONYM_MAP:
+            return ACRONYM_MAP[clean_w]
+    return raw_query
+
 THEMATIC_PALETTES = {
-    "automotive": ("Teknologi & Transportasi", (15, 23, 42), (220, 38, 38)),
-    "finance": ("Pasar Modal & Finansial", (10, 20, 35), (37, 99, 235)),
-    "labor": ("Upah & Ketenagakerjaan", (28, 20, 10), (217, 119, 6)),
-    "lifestyle": ("Ekonomi & Gaya Hidup", (10, 30, 28), (13, 148, 136)),
+    "automotive": ("Teknologi & Transportasi", (38, 24, 16), (185, 28, 28)),
+    "finance": ("Pasar Modal & Finansial", (30, 20, 14), (140, 88, 53)),
+    "labor": ("Upah & Ketenagakerjaan", (45, 30, 20), (166, 124, 82)),
+    "lifestyle": ("Ekonomi & Gaya Hidup", (35, 25, 18), (180, 130, 90)),
 }
 
 def generate_curated_editorial_hero(topic_theme: str, headline: str, save_path: Path) -> Path:
@@ -349,7 +375,7 @@ def fetch_editorial_photo_with_meta(
             matches = re.findall(r'murl&quot;:&quot;(https?://[^&]+?)&quot;', b_resp.text)
             for m in matches[:6]:
                 m_low = m.lower()
-                if not any(b in m_low for b in [".in/", "aajtak", "indiatoday", "zeenews", "ndtv", "logo", "icon", "channel", "banner"]):
+                if not any(b in m_low for b in [".in/", "aajtak", "indiatoday", "zeenews", "ndtv", "espn", "sports", "cricket", "football", "baseball", "nfl", "nba", "logo", "icon", "channel", "banner"]):
                     candidate_urls.append(m)
     except Exception:
         pass
@@ -601,6 +627,8 @@ def build_metrika_content(
     prog_cfg: Dict[str, Any],
     metrics: Optional[Dict[str, Any]],
     hero_img: Optional[Path],
+    slide2_img: Optional[Path],
+    slide3_img: Optional[Path],
     hero_meta: str,
 ) -> Dict[str, Any]:
     """
@@ -624,6 +652,7 @@ def build_metrika_content(
             "slides": [
                 {
                     "heading": f"{subject_title} vs Upah Riil Pekerja",
+                    "image": str(slide2_img) if slide2_img else None,
                     "overview_context": analysis.get("overview_context", "Perbandingan jam kerja riil pekerja dan pengemudi transportasi daring terhadap nilai barang konsumsi."),
                     "metric": {
                         "value": f"{metrics['ump_months']} Bulan",
@@ -681,6 +710,7 @@ def build_metrika_content(
             "sources": prog_cfg["sources"],
             "keywords": analysis.get("keywords", ["gadget", "harga", "resmi"]),
             "hero_image": str(hero_img) if hero_img else None,
+            "verdict_image": str(slide3_img) if slide3_img else None,
             "hero_image_meta": hero_meta,
             "narration": analysis.get("voiceover_script", ""),
         }
@@ -699,6 +729,7 @@ def build_metrika_content(
             "slides": [
                 {
                     "heading": analysis.get("slide_heading", "Fakta di Balik Kehebohan Isu"),
+                    "image": str(slide2_img) if slide2_img else None,
                     "overview_context": analysis.get("overview_context", "Latar belakang dan dinamika polarisasi opini publik yang berkembang di media sosial."),
                     "columns": [
                         {
@@ -729,6 +760,7 @@ def build_metrika_content(
             "sources": prog_cfg["sources"],
             "keywords": analysis.get("keywords", ["isu", "viral", "publik"]),
             "hero_image": str(hero_img) if hero_img else None,
+            "verdict_image": str(slide3_img) if slide3_img else None,
             "hero_image_meta": hero_meta,
             "narration": analysis.get("voiceover_script", ""),
         }
@@ -753,6 +785,7 @@ def build_metrika_content(
             "slides": [
                 {
                     "heading": slide_heading,
+                    "image": str(slide2_img) if slide2_img else None,
                     "overview_context": analysis.get("overview_context", "Analisis mendalam mengenai latar belakang data dan implikasi strategis terhadap masyarakat."),
                     "metric": {
                         "value": metric_val,
@@ -777,6 +810,7 @@ def build_metrika_content(
             "sources": prog_cfg["sources"],
             "keywords": analysis.get("keywords", ["gaji", "statistik", "anak muda"]),
             "hero_image": str(hero_img) if hero_img else None,
+            "verdict_image": str(slide3_img) if slide3_img else None,
             "hero_image_meta": hero_meta,
             "narration": analysis.get("voiceover_script", ""),
         }
@@ -837,7 +871,7 @@ def send_outputs_to_telegram(
 
     header_msg = (
         f"📊 *{MEDIA_NAME.upper()} • {prog_label}*\n"
-        f"Topik: *{content['hook']}*\n"
+        f"Topik: *{re.sub(r'</?red>', '', content['hook'])}*\n"
         f"Angka Kunci: *{content['hero']['value']}* ({content['hero']['label']})\n\n"
         f"⚖️ *Verdict Objektif:*\n_{content['verdict']}_\n\n"
         f"💬 *Diskusi Publik:*\n{content['cta']}\n\n"
@@ -861,7 +895,8 @@ def send_outputs_to_telegram(
         files_payload[attach_key] = img_path.open("rb")
         item_obj: Dict[str, Any] = {"type": "photo", "media": f"attach://{attach_key}"}
         if idx == 0:
-            item_obj["caption"] = f"🖼 {MEDIA_NAME} Carousel: {content['hook']} ({len(carousel_paths)} Slide)"
+            clean_h = re.sub(r"</?red>", "", content['hook'])
+            item_obj["caption"] = f"🖼 {MEDIA_NAME} Carousel: {clean_h} ({len(carousel_paths)} Slide)"
         media_group.append(item_obj)
 
     try:
@@ -903,13 +938,18 @@ def main() -> None:
     if prog_cfg["id"] == "INDEKS_KERINGAT":
         metrics = compute_labor_metrics(analysis.get("price_idr", 24_999_000))
 
-    # 4. Cari foto jurnalistik pendukung
-    hero_img, hero_meta = fetch_editorial_photo_with_meta(
-        news_item, analysis.get("subject_title", ""), HERO_IMG_PATH
-    )
+    # 4. Cari foto jurnalistik akurat untuk SETIAP slide
+    q_slide1 = resolve_search_query(f"{analysis.get('subject_title', '')} {news_item['title']}")
+    hero_img, hero_meta = fetch_editorial_photo_with_meta(news_item, q_slide1, HERO_IMG_PATH)
+
+    q_slide2 = resolve_search_query(f"{analysis.get('slide_heading', '')} {analysis.get('subject_title', '')} data grafik")
+    slide2_img, _ = fetch_editorial_photo_with_meta(news_item, q_slide2, SLIDE2_IMG_PATH)
+
+    q_slide3 = resolve_search_query(f"investor analisis pasar modal {analysis.get('subject_title', '')}")
+    slide3_img, _ = fetch_editorial_photo_with_meta(news_item, q_slide3, VERDICT_IMG_PATH)
 
     # 5. Adaptasi ke skema content metrika_render
-    content = build_metrika_content(analysis, prog_cfg, metrics, hero_img, hero_meta)
+    content = build_metrika_content(analysis, prog_cfg, metrics, hero_img, slide2_img, slide3_img, hero_meta)
 
     latest_json = OUTPUT_DIR / "latest_analysis.json"
     latest_json.write_text(json.dumps(content, indent=2, ensure_ascii=False), encoding="utf-8")
