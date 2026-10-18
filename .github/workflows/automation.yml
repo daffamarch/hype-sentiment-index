@@ -1,4 +1,4 @@
-name: Indeks Keringat Daily Media Automation
+name: METRIKA Media Multi-Program Automation
 
 on:
   # Jadwal otomatis setiap hari:
@@ -6,8 +6,19 @@ on:
   schedule:
     - cron: '0 22 * * *'
 
-  # Eksekusi manual via tab "Actions" -> "Run workflow"
+  # Eksekusi manual via tab "Actions" -> "Run workflow" (Bisa pilih rubrik manual untuk tes)
   workflow_dispatch:
+    inputs:
+      program_override:
+        description: 'Pilih program khusus (Kosongkan untuk otomatis sesuai jadwal hari):'
+        required: false
+        default: ''
+        type: choice
+        options:
+          - ''
+          - 'INDEKS_KERINGAT'
+          - 'RADAR_SENTIMEN'
+          - 'ANGKA_BICARA'
 
 permissions:
   contents: write
@@ -29,7 +40,7 @@ jobs:
           python-version: '3.11'
           cache: 'pip'
 
-      - name: 3. Install System Dependencies (FFmpeg & Fonts)
+      - name: 3. Install System Dependencies (FFmpeg & Linux Fonts)
         run: |
           sudo apt-get update
           sudo apt-get install -y ffmpeg fonts-dejavu-core fonts-liberation
@@ -43,8 +54,10 @@ jobs:
         run: |
           touch posted_links.txt
 
-      - name: 6. Run Indeks Keringat Media Pipeline
+      - name: 6. Run METRIKA Editorial Pipeline
         env:
+          MEDIA_NAME: "METRIKA"
+          PROGRAM_OVERRIDE: ${{ github.event.inputs.program_override || '' }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
@@ -55,7 +68,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: daily-indeks-keringat-media
+          name: daily-metrika-media
           path: |
             output_media/*.mp4
             output_media/carousel/*.png
