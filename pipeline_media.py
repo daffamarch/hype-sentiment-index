@@ -405,6 +405,10 @@ def analyze_with_gemini(
 Kamu adalah Redaktur Riset media data "{MEDIA_NAME}" untuk program "{prog_cfg['name']}".
 Misi: Membedah harga barang/gadget/tiket/gaya hidup nyata terhadap jam kerja ojol dan upah UMP Jakarta.
 
+GAYA HEADLINE EDITORIAL (@theeconomicinfluence):
+- Wajib tulis kalimat hook provokatif, sedikit satir, atau pertanyaan tajam ala @theeconomicinfluence.
+- Gunakan tag <red>...</red> untuk 2-4 kata kunci paling emosional/menohok (Contoh: 'IHSG Anjlok, <red>Danantara Justru Melihat Kesempatan</red> Lebih Besar').
+
 ATURAN ANTI-AI-SLOP:
 1. PRODUK WAJIB NYATA & RESMI DI INDONESIA: DILARANG mengarang barang masa depan. Harus produk nyata yang resmi beredar saat ini (contoh: iPhone 16 Pro Max 256GB, Vespa Sprint 150, Tiket Konser CAT 1, PS5 Slim, Sewa Kos Setahun).
 2. HARGA VALID: Tentukan estimasi harga pasar wajar integer Rupiah (misal: 24999000).
@@ -415,7 +419,7 @@ Format output JSON:
 {{
   "subject_title": "Nama produk resmi nyata di Indonesia (maks 26 karakter)",
   "price_idr": 24999000,
-  "hook": "Berapa lama harus kerja keras buat beli produk ini?",
+  "hook": "iPhone 16 Pro Resmi Rilis, <red>Berapa Bulan Gaji UMR</red> yang Harus Ditukar?",
   "keywords": ["gadget", "apple", "iphone", "hp"],
   "verdict": "Gadget bukan sekadar barang konsumsi; ia dibayar dengan ratusan jam kerja dan tetesan keringat.",
   "cta": "Berapa jam kerja yang rela kamu tukar untuk membeli barang ini? Tulis di komentar.",
@@ -427,6 +431,10 @@ Format output JSON:
 Kamu adalah Redaktur Opini Publik media data "{MEDIA_NAME}" untuk program "{prog_cfg['name']}".
 Misi: Membedah isu berita hangat yang viral di Indonesia secara objektif: Fakta Inti vs Kubu Pro vs Kubu Kontra.
 
+GAYA HEADLINE EDITORIAL (@theeconomicinfluence):
+- Wajib tulis kalimat hook provokatif, sedikit satir, atau pertanyaan tajam ala @theeconomicinfluence.
+- Gunakan tag <red>...</red> untuk 2-4 kata kunci paling emosional/menohok (Contoh: 'IHSG Anjlok, <red>Danantara Justru Melihat Kesempatan</red> Lebih Besar').
+
 ATURAN ANTI-AI-SLOP:
 1. FAKTA BERITA NYATA: Ringkas fakta inti peristiwa dengan jernih tanpa sensasionalisme.
 2. POLARISASI PERSENTASE REALISTIS: Tentukan angka persentase pro vs kontra (misal pro 62, kontra 38).
@@ -437,7 +445,7 @@ ATURAN ANTI-AI-SLOP:
 Format output JSON:
 {{
   "subject_title": "Isu atau Tokoh Utama (maks 26 karakter)",
-  "hook": "Isu viral ini memecah publik jadi dua kubu. Apa faktanya?",
+  "hook": "IHSG Babak Belur, <red>Emangnya Ngaruh?</red> Kan Kita di Desa Gak Main Saham.",
   "pro_pct": 62,
   "contra_pct": 38,
   "keywords": ["kebijakan", "publik", "viral", "isu"],
@@ -454,6 +462,10 @@ Format output JSON:
 Kamu adalah Jurnalis Data media "{MEDIA_NAME}" untuk program "{prog_cfg['name']}".
 Misi: Menyajikan riset statistik gaya hidup, biaya hidup, dan ekonomi anak muda secara infografis.
 
+GAYA HEADLINE EDITORIAL (@theeconomicinfluence):
+- Wajib tulis kalimat hook provokatif, sedikit satir, atau pertanyaan tajam ala @theeconomicinfluence.
+- Gunakan tag <red>...</red> untuk 2-4 kata kunci paling emosional/menohok (Contoh: 'IHSG Anjlok, <red>Danantara Justru Melihat Kesempatan</red> Lebih Besar').
+
 ATURAN ANTI-AI-SLOP:
 1. DATA VALID & MASUK AKAL: Angkat temuan statistik riil (seperti survei alokasi gaji, sewa kos, literasi investasi).
 2. DILARANG MENGGUNAKAN EMOJI.
@@ -462,7 +474,7 @@ ATURAN ANTI-AI-SLOP:
 Format output JSON:
 {{
   "subject_title": "Topik Riset atau Statistik (maks 26 karakter)",
-  "hook": "Kenapa mayoritas anak muda kesulitan menyisihkan dana investasi?",
+  "hook": "Riset BPS: <red>42% Gaji Anak Muda Habis</red> Cuma Buat Sewa Kos dan Makan.",
   "hero_value": "42%",
   "hero_label": "pendapatan bulanan habis untuk kebutuhan biaya kos dan makan",
   "keywords": ["investasi", "gaji", "keuangan", "anak muda"],
