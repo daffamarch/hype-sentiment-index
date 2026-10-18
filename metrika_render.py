@@ -746,7 +746,7 @@ def render_carousel_slides(content: Dict[str, Any], out_dir: str | Path, fmt: st
             for name, page_html in html_pages:
                 out_img = out_dir / f"{name}.png"
                 try:
-                    page.set_content(page_html, wait_until="networkidle", timeout=45000)
+                    page.set_content(page_html, wait_until="networkidle", timeout=20000)
                 except Exception as err:
                     log.warning(f"networkidle gagal ({err}); mencoba domcontentloaded.")
                     page.set_content(page_html, wait_until="domcontentloaded")
