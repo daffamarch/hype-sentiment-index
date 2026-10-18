@@ -45,10 +45,11 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y ffmpeg fonts-dejavu-core fonts-liberation
 
-      - name: 4. Install Python Libraries
+      - name: 4. Install Python Libraries & Headless Chromium (Playwright Engine)
         run: |
           python -m pip install --upgrade pip
-          pip install feedparser requests beautifulsoup4 edge-tts Pillow
+          pip install feedparser requests beautifulsoup4 edge-tts Pillow playwright
+          playwright install chromium --with-deps
 
       - name: 5. Ensure Anti-Duplication Cache File Exists
         run: |
@@ -72,6 +73,7 @@ jobs:
           path: |
             output_media/*.mp4
             output_media/carousel/*.png
+            output_media/carousel/*.html
             output_media/latest_analysis.json
           retention-days: 7
 
