@@ -3,3 +3,5 @@ requests
 beautifulsoup4
 edge-tts
 Pillow
+ddgs
+duckduckgo_search
