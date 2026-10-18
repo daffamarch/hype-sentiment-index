@@ -4,17 +4,14 @@
 METRIKA Media - Automated Multi-Program Editorial System
 ========================================================
 Platform media otomasi cerdas berbasis Jurnalisme Data & Komputasi Visual.
-Menjalankan jadwal rubrikasi mingguan terstruktur:
-- SENIN & KAMIS   : PROGRAM "INDEKS KERINGAT" (Kalkulasi Daya Beli: Gadget/Gaya Hidup vs Jam Kerja)
-- SELASA & JUMAT  : PROGRAM "RADAR SENTIMEN" (Isu Berita Viral: Fakta Inti vs Kubu Pro vs Kubu Kontra)
-- RABU, SABTU & MINGGU: PROGRAM "ANGKA BICARA" (Data Storytelling & Statistik Gaya Hidup / Finansial)
+Standar Editorial Kelas Agensi Desain & Media Investigasi Premium (@theeconomicinfluence, Bloomberg).
 
 Fokus Utama:
-- Carousel Instagram 5 Slide Berkualitas Agensi Desain (1080x1350 px).
+- Carousel Instagram 5 Slide Padat & Penuh (1080x1350 px), ZERO BLANK VOID.
+- Copywriting Tajam, Provokatif, Emosional, dan Bebas Bahasa Birokrat Klise.
+- Foto Jurnalistik 100% Nyata & Relevan (Filter anti-dokumen scan, anti-buku arsip, anti-anime).
 - Palet Coklat Mewah (Luxury Espresso, Warm Cognac Leather, Warm Ivory Linen).
-- Foto editorial nyata 100% akurat untuk setiap slide (Anti-Anime, Anti-Halloween, Anti-Random).
-- Hook penahan scroll di setiap slide.
-- Tanpa rendering video (fokus 100% pada kesempurnaan carousel).
+- Tanpa rendering video (100% komputasi difokuskan pada keindahan carousel).
 """
 
 import asyncio
@@ -69,7 +66,7 @@ PREFERRED_GEMINI_MODELS = [
     "gemini-1.5-pro",
 ]
 
-# Strict Exclusion List untuk Domain dan Kata Kunci Non-Jurnalistik
+# Strict Exclusion List untuk Menolak Dokumen Arsip, Buku Scan, & Gambar Non-Fotografis
 BLOCKED_IMAGE_DOMAINS = [
     "googleusercontent.com/ytc",
     "yt3.ggpht.com",
@@ -95,6 +92,9 @@ BLOCKED_IMAGE_DOMAINS = [
 ]
 
 DISALLOWED_IMAGE_TERMS = [
+    "archive", "document", "historic", "report", "cover", "page_", "_page",
+    "book", "pdf", "scan", "manuscript", "text", "diagram", "edition", "staff",
+    "circular", "memorandum", "paper", "scientific", "knowledge", "policy",
     "anime", "manga", "cartoon", "illustration", "vector", "drawing", "sketch",
     "cosplay", "game", "wallpaper", "avatar", "profile", "halloween", "spooky",
     "pumpkin", "room", "bedroom", "dress", "doll", "character", "comic", "costume",
@@ -135,16 +135,23 @@ HTTP_HEADERS = {
     )
 }
 
-# Bank Foto Terverifikasi Bebas Hak Cipta untuk Topik Populer Indonesia
+# Bank Foto Terverifikasi Bebas Hak Cipta & Berkualitas Editorial Tinggi
 TOPIC_IMAGE_VAULT = {
-    "gold": "https://images.unsplash.com/photo-1610375461246-83df859d849d?auto=format&fit=crop&w=1200&q=80",
-    "chart": "https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?auto=format&fit=crop&w=1200&q=80",
     "money": "https://images.unsplash.com/photo-1580519542036-c47de6196ba5?auto=format&fit=crop&w=1200&q=80",
+    "rupiah": "https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?auto=format&fit=crop&w=1200&q=80",
+    "currency_exchange": "https://images.unsplash.com/photo-1526304640581-d334cdbbf45e?auto=format&fit=crop&w=1200&q=80",
+    "chart": "https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?auto=format&fit=crop&w=1200&q=80",
+    "gold": "https://images.unsplash.com/photo-1610375461246-83df859d849d?auto=format&fit=crop&w=1200&q=80",
+    "gold_coins": "https://images.unsplash.com/photo-1509718443690-d8e2fb3474b7?auto=format&fit=crop&w=1200&q=80",
     "investor": "https://images.unsplash.com/photo-1590283603385-17ffb3a7f29f?auto=format&fit=crop&w=1200&q=80",
+    "trading_screen": "https://images.unsplash.com/photo-1642543492481-44e81e3914a7?auto=format&fit=crop&w=1200&q=80",
     "bank": "https://images.unsplash.com/photo-1541354329998-f4d9a9f9297f?auto=format&fit=crop&w=1200&q=80",
+    "vault": "https://images.unsplash.com/photo-1565372195458-9de0b320ef04?auto=format&fit=crop&w=1200&q=80",
+    "jakarta": "https://images.unsplash.com/photo-1578632767115-351597cf2477?auto=format&fit=crop&w=1200&q=80",
+    "skyscraper": "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=1200&q=80",
+    "workers": "https://images.unsplash.com/photo-1517048676732-d65bc937f952?auto=format&fit=crop&w=1200&q=80",
     "gadget": "https://images.unsplash.com/photo-1510557880182-3d4d3cba35a5?auto=format&fit=crop&w=1200&q=80",
-    "ojol": "https://images.unsplash.com/photo-1558981403-c5f9899a28bc?auto=format&fit=crop&w=1200&q=80",
-    "business": "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=1200&q=80",
+    "traffic": "https://images.unsplash.com/photo-1558981403-c5f9899a28bc?auto=format&fit=crop&w=1200&q=80",
 }
 
 
@@ -202,12 +209,12 @@ def get_daily_program_config() -> Dict[str, Any]:
             "subtitle": "DATA STORYTELLING & GAYA HIDUP",
             "feeds": [
                 "https://news.google.com/rss/headlines/section/topic/BUSINESS?hl=id&gl=ID&ceid=ID:id",
-                "https://news.google.com/rss/search?q=biaya+hidup+OR+survei+gaji+OR+harga+emas+OR+saham+ihsg+indonesia&hl=id&gl=ID&ceid=ID:id",
+                "https://news.google.com/rss/search?q=rupiah+tembus+OR+harga+emas+OR+saham+ihsg+OR+biaya+hidup+indonesia&hl=id&gl=ID&ceid=ID:id",
             ],
             "sources": [
-                "Logam Mulia PT Antam Tbk",
-                "Bursa Efek Indonesia (IDX)",
                 "Bank Indonesia (BI)",
+                "Bursa Efek Indonesia (IDX)",
+                "Logam Mulia PT Antam Tbk",
                 "Badan Pusat Statistik (BPS)",
             ],
         }
@@ -265,33 +272,14 @@ def fetch_latest_program_news(prog_cfg: Dict[str, Any]) -> Tuple[Dict[str, str],
                 continue
 
     if not candidates:
-        if prog_cfg["id"] == "INDEKS_KERINGAT":
-            candidates.append(
-                {
-                    "title": "Harga iPhone 16 Pro Max 256GB Resmi Indonesia dan Rasio Upah Pekerja",
-                    "link": f"https://metrika.id/data/{datetime.date.today()}",
-                    "summary": "Analisis harga resmi flagship gadget terhadap UMP DKI Jakarta dan jam kerja pengemudi transportasi daring.",
-                    "published": str(datetime.date.today()),
-                }
-            )
-        elif prog_cfg["id"] == "RADAR_SENTIMEN":
-            candidates.append(
-                {
-                    "title": "Wacana Pemangkasan Jam Kerja vs Target Produktivitas Karyawan",
-                    "link": f"https://metrika.id/sentimen/{datetime.date.today()}",
-                    "summary": "Perdebatan hangat warganet mengenai wacana 4 hari kerja seminggu antara kubu pegiat work-life balance dan pengusaha.",
-                    "published": str(datetime.date.today()),
-                }
-            )
-        else:
-            candidates.append(
-                {
-                    "title": "Harga Emas Antam Tembus Rekor Baru: Investor Hadapi Dilema Jual atau Tahan",
-                    "link": f"https://metrika.id/statistik/{datetime.date.today()}",
-                    "summary": "Lonjakan harga emas murni 24 karat di tengah sentimen geopolitik global dan pilihan alokasi aset masyarakat.",
-                    "published": str(datetime.date.today()),
-                }
-            )
+        candidates.append(
+            {
+                "title": "Rupiah Tembus Rp 16.500 per Dolar AS: Beban Impor Membengkak dan Risiko Inflasi",
+                "link": f"https://metrika.id/kurs/{datetime.date.today()}",
+                "summary": "Tekanan nilai tukar rupiah terhadap dolar AS memicu kenaikan biaya produksi industri dan potensi lonjakan harga barang pokok.",
+                "published": str(datetime.date.today()),
+            }
+        )
 
     primary_item = candidates[0]
     supporting = [item["title"] for item in candidates[1:6]]
@@ -300,60 +288,36 @@ def fetch_latest_program_news(prog_cfg: Dict[str, Any]) -> Tuple[Dict[str, str],
 
 
 ACRONYM_MAP = {
-    "BBCA": "Bank Central Asia BCA gedung kantor Jakarta",
+    "BBCA": "Bank Central Asia BCA gedung Jakarta",
     "BBRI": "Bank Rakyat Indonesia BRI kantor gedung",
     "BMRI": "Bank Mandiri kantor pusat Jakarta",
     "BBNI": "Bank BNI kantor Jakarta",
-    "IHSG": "Bursa Efek Indonesia saham IDX trading board",
-    "MSCI": "Bursa Efek Indonesia pasar modal saham",
-    "BEI": "Bursa Efek Indonesia gedung IDX",
-    "KRL": "KRL Commuter Line Jabodetabek kereta stasiun",
-    "OJOL": "Pengemudi ojek online jalanan Jakarta motor",
-    "BPS": "Badan Pusat Statistik kantor Jakarta",
-    "ANTAM": "Emas batangan Logam Mulia Antam gold bar",
-    "EMAS": "Emas batangan gold bullion bar 24k",
-    "TESLA": "Tesla electric car automobile",
+    "IHSG": "Bursa Efek Indonesia IDX trading floor",
+    "BEI": "Bursa Efek Indonesia IDX building",
+    "RUPIAH": "Indonesian rupiah banknotes currency cash money",
+    "DOLAR": "US dollar banknotes currency cash",
+    "KURS": "Currency exchange money trading stock market",
+    "EMAS": "Gold bullion bars antam 24k",
+    "ANTAM": "Gold bullion bars antam logammulia",
+    "KRL": "KRL Commuter Line train station Jakarta",
+    "OJOL": "Motorcycle taxi street Jakarta traffic",
+    "BPS": "Jakarta modern city building skyline",
 }
 
 def clean_query_term(raw_query: str) -> str:
-    """Membersihkan kata pencarian agar fokus ke entitas fotografi fisik konkret."""
     words = raw_query.upper().split()
     for w in words:
         clean_w = re.sub(r'[^A-Z]', '', w)
         if clean_w in ACRONYM_MAP:
             return ACRONYM_MAP[clean_w]
     
-    # Ambil 3-5 kata benda penting
     clean = re.sub(r'[^\w\s]', ' ', raw_query).strip()
-    tokens = [t for t in clean.split() if len(t) > 2 and t.lower() not in ["dan", "yang", "dari", "untuk", "pada", "adalah", "ini", "itu", "atau"]]
-    return " ".join(tokens[:5])
-
-
-def generate_curated_editorial_canvas(topic_title: str, slide_label: str, save_path: Path) -> Path:
-    """Membuat latar visual editorial bernuansa coklat mewah jika unduhan eksternal gagal."""
-    im = Image.new("RGB", (1200, 800), (35, 23, 16)) # Dark Roasted Espresso
-    d = ImageDraw.Draw(im)
-
-    # Pola garis kisi elegan
-    for y in range(60, 740, 70):
-        d.line([(60, y), (1140, y)], fill=(48, 32, 22), width=1)
-    for x in range(60, 1140, 100):
-        d.line([(x, 60), (x, 740)], fill=(48, 32, 22), width=1)
-
-    # Frame aksen warm cognac leather
-    d.rectangle([(40, 40), (1160, 760)], outline=(140, 88, 53), width=2)
-    d.rectangle([(0, 785), (1200, 800)], fill=(185, 28, 28)) # Red accent bar
-
-    clean_t = re.sub(r'</?red>', '', topic_title).strip()
-    d.text((80, 320), f"METRIKA DOKUMENTASI DATA • {slide_label.upper()}", fill=(226, 183, 146))
-    d.text((80, 380), clean_t[:60], fill=(250, 246, 240))
-    im.save(save_path, format="JPEG", quality=92)
-    print(f"[Photo] Visual editorial kanvas tersusun rapi: {save_path.name}")
-    return save_path
+    tokens = [t for t in clean.split() if len(t) > 2 and t.lower() not in ["dan", "yang", "dari", "untuk", "pada", "adalah", "ini", "itu", "atau", "bisa", "akan"]]
+    return " ".join(tokens[:4])
 
 
 def is_safe_image_url(url: str) -> bool:
-    """Memastikan URL bukan kartun/anime, profil youtube, atau wallpaper tidak relevan."""
+    """Filter ketat penolakan dokumen scan, buku arsip, kartun, dan domain berbahaya."""
     url_low = url.lower()
     if any(b in url_low for b in BLOCKED_IMAGE_DOMAINS):
         return False
@@ -363,38 +327,36 @@ def is_safe_image_url(url: str) -> bool:
 
 
 def fetch_editorial_photo_with_meta(
-    news_item: Dict[str, str], query_term: str, save_path: Path, fallback_key: str = "business"
+    news_item: Dict[str, str], query_term: str, save_path: Path, fallback_key: str = "chart"
 ) -> Tuple[Path, str]:
     """
     Mengunduh foto jurnalistik 100% nyata & akurat.
-    Menggunakan Wikimedia Commons + Bing Photo Filter + Unsplash Vault.
-    Menjamin tidak ada gambar anime, kartun, atau gambar halloween!
+    Menggunakan Unsplash Vault + Bing Photo Filter + Validasi Pixel Anti-Dokumen Scan.
     """
     candidate_urls: List[str] = []
     clean_q = clean_query_term(query_term)
     meta_text = f"{query_term} {news_item['title']}"
 
-    # 1. Prioritas Utama: Cari di Wikimedia Commons API (Foto Asli Bebas Hak Cipta)
-    try:
-        wiki_search_url = (
-            "https://commons.wikimedia.org/w/api.php?action=query&generator=search"
-            f"&gsrnamespace=6&gsrsearch={urllib.parse.quote(clean_q + ' photo')}&gsrlimit=4"
-            "&prop=imageinfo&iiprop=url|mime&iiurlwidth=1200&format=json"
-        )
-        w_res = requests.get(wiki_search_url, headers=HTTP_HEADERS, timeout=6)
-        if w_res.status_code == 200:
-            pages = w_res.json().get("query", {}).get("pages", {})
-            for _, p_data in pages.items():
-                img_info = p_data.get("imageinfo", [{}])[0]
-                thumb_url = img_info.get("thumburl") or img_info.get("url")
-                if thumb_url and is_safe_image_url(thumb_url):
-                    candidate_urls.append(thumb_url)
-    except Exception:
-        pass
+    # Deteksi vault otomatis berdasarkan teks berita
+    title_low = (news_item["title"] + " " + query_term).lower()
+    if any(k in title_low for k in ["rupiah", "dolar", "kurs", "uang", "valas", "devisa"]):
+        if "chart" in fallback_key:
+            candidate_urls.append(TOPIC_IMAGE_VAULT["chart"])
+        else:
+            candidate_urls.append(TOPIC_IMAGE_VAULT["rupiah"])
+            candidate_urls.append(TOPIC_IMAGE_VAULT["money"])
+            candidate_urls.append(TOPIC_IMAGE_VAULT["currency_exchange"])
+    elif any(k in title_low for k in ["emas", "antam", "logam mulia", "gold"]):
+        candidate_urls.append(TOPIC_IMAGE_VAULT["gold"])
+        candidate_urls.append(TOPIC_IMAGE_VAULT["gold_coins"])
+    elif any(k in title_low for k in ["saham", "ihsg", "bursa", "idx", "msci"]):
+        candidate_urls.append(TOPIC_IMAGE_VAULT["chart"])
+        candidate_urls.append(TOPIC_IMAGE_VAULT["trading_screen"])
+        candidate_urls.append(TOPIC_IMAGE_VAULT["investor"])
 
-    # 2. Cari di Bing Image Search dengan Filter Ketat (+photo +large) & Negative Terms
+    # Cari di Bing Image Search dengan Filter Ketat (+photo +large) & Negative Terms
     try:
-        search_engine_q = f"{clean_q} photograph real news -anime -manga -cartoon -drawing -illustration -wallpaper -avatar -halloween"
+        search_engine_q = f"{clean_q} photography stock market business -document -archive -scan -paper -book -anime -cartoon -drawing -illustration"
         bing_url = (
             "https://www.bing.com/images/search?q="
             + urllib.parse.quote(search_engine_q)
@@ -403,36 +365,62 @@ def fetch_editorial_photo_with_meta(
         b_resp = requests.get(bing_url, headers=HTTP_HEADERS, timeout=6)
         if b_resp.status_code == 200:
             matches = re.findall(r'murl&quot;:&quot;(https?://[^&]+?)&quot;', b_resp.text)
-            for m in matches[:8]:
+            for m in matches[:6]:
                 if is_safe_image_url(m):
                     candidate_urls.append(m)
     except Exception:
         pass
 
-    # 3. Masukkan Foto Cadangan Tematik Terkurasi dari Vault
-    vault_url = TOPIC_IMAGE_VAULT.get(fallback_key, TOPIC_IMAGE_VAULT["business"])
-    candidate_urls.append(vault_url)
+    # Tambahkan fallback default dari vault
+    candidate_urls.append(TOPIC_IMAGE_VAULT.get(fallback_key, TOPIC_IMAGE_VAULT["chart"]))
+    candidate_urls.append(TOPIC_IMAGE_VAULT["jakarta"])
 
-    # Validasi download gambar yang valid
+    # Validasi download gambar dengan filter pixel anti-kertas scan
     for img_url in candidate_urls:
         try:
             r = requests.get(img_url, headers=HTTP_HEADERS, timeout=8)
-            if r.status_code == 200 and len(r.content) > 12_000:
+            if r.status_code == 200 and len(r.content) > 15_000:
                 pil_img = Image.open(io.BytesIO(r.content)).convert("RGB")
-                if pil_img.width >= 400 and pil_img.height >= 250:
-                    pil_img.save(save_path, format="JPEG", quality=92)
-                    print(f"[Photo] Foto jurnalistik berhasil diunduh: {img_url[:65]}...")
-                    return save_path, f"{meta_text} {img_url}"
+                
+                # Cek dimensi: harus berorientasi landscape/horizontal
+                if pil_img.width < 500 or pil_img.height < 300:
+                    continue
+                if pil_img.height > pil_img.width * 1.2:
+                    continue  # Tolak dokumen scan berorientasi vertikal/portrait
+
+                # Cek rasio pixel putih: jika > 65% putih pekat, itu adalah dokumen teks/kertas scan!
+                gray = pil_img.convert("L")
+                hist = gray.histogram()
+                white_pixels = sum(hist[238:])
+                total_pixels = pil_img.width * pil_img.height
+                if (white_pixels / total_pixels) > 0.60:
+                    print(f"[Photo Rejected] Ditolak karena terdeteksi dokumen/kertas putih scan ({white_pixels/total_pixels*100:.1f}% putih).")
+                    continue
+
+                pil_img.save(save_path, format="JPEG", quality=92)
+                print(f"[Photo] Foto jurnalistik akurat terverifikasi: {img_url[:65]}...")
+                return save_path, f"{meta_text} {img_url}"
         except Exception:
             continue
 
-    # Fallback Terakhir: Kanvas Editorial Coklat Mewah Elegan
-    generated = generate_curated_editorial_canvas(news_item["title"], clean_q[:25], save_path)
-    return generated, meta_text
+    # Fallback Terakhir: Ambil foto rupiah/emas/chart terverifikasi dari Unsplash Vault
+    backup_url = TOPIC_IMAGE_VAULT.get(fallback_key, TOPIC_IMAGE_VAULT["chart"])
+    try:
+        r = requests.get(backup_url, headers=HTTP_HEADERS, timeout=10)
+        pil_img = Image.open(io.BytesIO(r.content)).convert("RGB")
+        pil_img.save(save_path, format="JPEG", quality=92)
+        return save_path, f"{meta_text} {backup_url}"
+    except Exception:
+        pass
+
+    # Cadangan absolut jika internet mati total
+    im = Image.new("RGB", (1200, 800), (35, 23, 16))
+    im.save(save_path, format="JPEG", quality=92)
+    return save_path, meta_text
 
 
 # ==============================================================================
-# 4. OTAK AI: ANALISIS PROGRAM UNTUK 5 SLIDE NARRATIVE CAROUSEL
+# 4. OTAK AI: ANALISIS JURNALISTIK KELAS AGENSI (COPYWRITING EMOSIONAL & TAJAM)
 # ==============================================================================
 def get_available_gemini_models() -> List[str]:
     if GEMINI_MODEL_OVERRIDE:
@@ -467,72 +455,77 @@ def analyze_with_gemini(
         raise EnvironmentError("GEMINI_API_KEY belum terpasang di GitHub Secrets!")
 
     instructions = f"""
-Kamu adalah Pemimpin Redaksi media data "{MEDIA_NAME}" untuk program "{prog_cfg['name']}".
-Misi: Mengubah berita terpilih menjadi ARSITEKTUR CAROUSEL 5 SLIDE NARRATIVE KELAS AGENSI DESAIN.
+Kamu adalah Pemimpin Redaksi & Direktur Kreatif media riset data investigasi papan atas "{MEDIA_NAME}" (setara @theeconomicinfluence, Bloomberg QuickTake, Visual Capitalist).
+Misi: Mengubah berita harian menjadi CAROUSEL 5 SLIDE NARRATIVE DENGAN COPYWRITING KELAS DUNIA.
 
-ATURAN STRUKTUR 5 SLIDE LENGKAP:
-- SLIDE 1 (COVER): Hook provokatif hitam-merah (<red>kata kunci</red>) + Stat Pill (angka dan label penting).
-- SLIDE 2 (KONTEKS & AKAR MASALAH): Hook penahan scroll + 3 poin investigasi padat berformat '**Kata Kunci:** Uraian fakta 20-30 kata'.
-- SLIDE 3 (BEDAH ANGKA & DATA): Hook penahan scroll + Metric spotlight angka + 2 kolom analisis perbandingan (masing-masing 3 poin padat).
-- SLIDE 4 (SKENARIO STRATEGIS): Hook penahan scroll + 3 skenario aksi nyata (Skenario A, Skenario B, Skenario C) + 1 kalimat takeaway penting.
-- SLIDE 5 (VERDICT & DISKUSI): Verdict objektif redaksi + pertanyaan diskusi terbuka pemantik komentar + 3-4 rujukan data resmi.
+PANDUAN COPYWRITING BERKELAS TINGGI:
+1. DILARANG KERAS BAHASA BIROKRAT KLISE: JANGAN gunakan kalimat hambar seperti 'Saatnya cermati dampak dan strategi antisipasi', 'Dilema ekonomi nasional', atau 'Perlu ditingkatkan kesadaran'. Itu membosankan dan diabaikan audiens!
+2. HOOK COVER (SLIDE 1): Harus provokatif, memicu rasa penasaran, dan langsung menyentuh dompet/kehidupan pembaca. Gunakan tag <red>...</red> untuk 2-4 kata kunci paling emosional.
+   - Contoh Hebat: 'Rupiah Tembus 18.000, <red>Harga Barang Impor Bakal Meledak</red>: Siapa yang Bakal Paling Menjerit?'
+   - Contoh Hebat: 'Emas Tembus Rekor, <red>Gaji Kita Makin Tertinggal</red>: Jangan Beli Sebelum Baca Ini!'
+3. HOOK SLIDE 2 (KONTEKS): Tulis pertanyaan menohok penahan scroll (contoh: 'Kenapa Dolar Tiba-tiba Menggila dan Bikin Rupiah Berdarah-darah?'). 3 poin investigasi wajib diawali **Bold Lead-in Tajam** diikuti uraian 25-35 kata penuh data riil.
+4. HOOK SLIDE 3 (BEDAH ANGKA): Tulis hook kalkulasi riil (contoh: 'Berapa Beban Tambahan yang Diam-diam Disedot dari Dompetmu?'). Cantumkan angka spotlight yang bikin terperangah (misal: '+Rp 450 Ribu', '-6,5%', '2,4 Juta Lot').
+5. HOOK SLIDE 4 (SKENARIO STRATEGIS): Tulis hook aksi konkret (contoh: 'Tiga Benteng Finansial Sebelum Badai Inflasi Mengganas'). Buat 3 skenario taktis untuk 3 profil berbeda (Konsumen Ritel, Pelaku Usaha UMKM, Investor Saham).
+6. VERDICT & DISKUSI (SLIDE 5): Kalimat kesimpulan berbobot (contoh: 'Rupiah boleh melemah, tapi strategi finansialmu tidak boleh ikut lumpuh.') + Pertanyaan diskusi terbuka pemantik ratusan komentar.
 
-ATURAN PENCARIAN FOTO (PENTING! ANTI-ANIME & ANTI-HALLOWEEN):
-- Tulis 'query_photo' untuk setiap slide berupa 3-4 KATA BENDA FOTOGRAFI FISIK NYATA dalam Bahasa Inggris/Indonesia (contoh: 'gold bullion bar antam', 'stock market candlestick chart', 'indonesian rupiah banknotes', 'bank vault safe deposit box', 'jakarta stock exchange floor'). DILARANG MENULIS KATA ABSTRAK ATAU EMOSIONAL!
+PANDUAN PENCARIAN FOTO (FOTOGRAFI NYATA):
+- Berikan kata kunci pencarian foto fisik konkret (misal: 'indonesian rupiah banknotes', 'stock trading chart candlestick', 'bank vault gold bullion', 'jakarta central business district').
 
-Format output JSON murni:
+Format output JSON murni tanpa markdown:
 {{
-  "subject_title": "Topik Berita Nyata (maks 25 karakter)",
-  "hook": "Emas Rekor Lagi, <red>Investor Hadapi Dilema</red>: Saatnya Beli di Pucuk atau Ambil Untung?",
-  "hero_value": "Rp 1.490.000",
-  "hero_label": "rekor harga emas murni Antam per gram hari ini",
-  "slide1_photo_query": "gold bullion bar antam logammulia",
-  "fallback_theme_1": "gold",
+  "subject_title": "Topik Utama (maks 25 karakter)",
+  "hook": "Rupiah Tembus 18.000, <red>Harga Barang Impor Bakal Meledak</red>: Siapa yang Bakal Paling Menjerit?",
+  "hero_value": "Rp 18.000",
+  "hero_label": "level psikologis rupiah terhadap dolar AS yang memicu alarm ekonomi",
+  "slide1_photo_query": "indonesian rupiah banknotes money cash",
+  "fallback_theme_1": "rupiah",
 
   "slide2_eyebrow": "01 / DOKUMENTASI FAKTA",
-  "slide2_hook": "Mengapa Harga Emas Mendadak Meledak dan Cetak Rekor Baru?",
+  "slide2_hook": "Kenapa Dolar Makin Perkasa dan Bikin Rupiah Berdarah-darah?",
   "slide2_points": [
-    "**Ketegangan Geopolitik:** Eskalasi konflik internasional memicu lonjakan permintaan aset safe haven global.",
-    "**Aksi Bank Sentral:** Pembelian cadangan emas fisik oleh otoritas moneter dunia mencapai rekor tertinggi.",
-    "**Sentimen Inflasi Domestik:** Investor ritel dan korporasi mengalihkan likuiditas tunai untuk lindung nilai daya beli."
+    "**Suku Bunga Agresif The Fed:** Bank Sentral AS menahan suku bunga tinggi, memicu aksi 'sedot' likuiditas modal keluar dari pasar negara berkembang.",
+    "**Jatuh Tempo Utang Valas:** Korporasi domestik berebut memborong dolar di pasar spot untuk melunasi kewajiban utang luar negeri.",
+    "**Tagihan Impor Energi & Pangan:** Ketergantungan impor minyak mentah dan bahan pokok menguras cadangan devisa hingga miliaran dolar setiap kuartal."
   ],
-  "slide2_photo_query": "gold market candlestick trading chart",
+  "slide2_takeaway": "Pelemahan kurs bukan sekadar angka di grafik, melainkan sinyal lonjakan biaya hidup sehari-hari.",
+  "slide2_photo_query": "stock market trading chart candlestick",
   "fallback_theme_2": "chart",
 
   "slide3_eyebrow": "02 / BEDAH DATA RISET",
-  "slide3_hook": "Dilema Dua Arah: Beli di Pucuk atau Ambil Untung Sekarang?",
-  "slide3_metric_value": "+31,8%",
-  "slide3_metric_label": "kenaikan rata-rata harga emas murni year-to-date di pasar domestik",
-  "slide3_col1_title": "Argumen Akumulasi (Bullish)",
+  "slide3_hook": "Berapa Beban yang Diam-diam Harus Ditanggung Dompet Kita?",
+  "slide3_metric_value": "-6,5%",
+  "slide3_metric_label": "depresiasi rupiah year-to-date terlemah di antara mata uang utama regional",
+  "slide3_col1_title": "Beban Dompet Konsumen Ritel",
   "slide3_col1_points": [
-    "Tren suku bunga acuan global melandai meningkatkan daya tarik emas non-yield.",
-    "Pelemahan mata uang regional memperkuat posisi emas sebagai jangkar nilai aset.",
-    "Keterbatasan suplai tambang fisik dunia menopang harga jangka panjang."
+    "Harga barang elektronik, laptop, dan gadget impor naik rata-rata 8-12 persen.",
+    "Kenaikan harga pakan ternak impor mengerek harga telur dan daging ayam potong di pasar tradisional.",
+    "Tarif transportasi dan bahan bakar berpotensi disesuaikan akibat lonjakan subsidi valas."
   ],
-  "slide3_col2_title": "Argumen Rebalancing (Bearish)",
+  "slide3_col2_title": "Beban Sektor Usaha & Manufaktur",
   "slide3_col2_points": [
-    "Risiko koreksi teknikal jangka pendek akibat aksi profit taking pemodal besar.",
-    "Spread jual-beli (buyback) butik emas membutuhkan waktu untuk impas biaya awal.",
-    "Emas tidak menghasilkan dividen atau arus kas kas masuk secara periodik."
+    "Margin keuntungan industri tekstil dan plastik tergerus karena 70% bahan baku dibayar dengan dolar.",
+    "Biaya sewa cloud server dan lisensi software teknologi membengkak drastis bagi pelaku startup.",
+    "Risiko efisiensi tenaga kerja di pabrik-pabrik padat impor jika pelemahan bertahan lebih dari 3 bulan."
   ],
-  "slide3_photo_query": "indonesian rupiah banknotes currency cash",
-  "fallback_theme_3": "money",
+  "slide3_alert_text": "Setiap pelemahan Rp 500 per dolar menambah beban belanja negara hingga puluhan triliun rupiah.",
+  "slide3_photo_query": "currency exchange cash desk bank",
+  "fallback_theme_3": "currency_exchange",
 
   "slide4_eyebrow": "03 / SKENARIO STRATEGIS",
-  "slide4_hook": "Tiga Skenario Menghadapi Fluktuasi Harga Pasar",
+  "slide4_hook": "Tiga Benteng Finansial Sebelum Badai Inflasi Mengganas",
   "slide4_scenarios": [
-    {{"tag": "SKENARIO JANGKA PANJANG", "text": "**Dollar Cost Averaging:** Alokasikan porsi tetap bulanan saat terjadi koreksi harga wajar, bukan saat tren memuncak."}},
-    {{"tag": "SKENARIO KEBUTUHAN TUNAI", "text": "**Realisasi Bertahap:** Jual sebagian porsi profit jika ada kebutuhan dana darurat atau modal usaha produktif."}},
-    {{"tag": "SKENARIO ANTI-FOMO", "text": "**Disiplin Portofolio:** Batasi alokasi logam mulia maksimal 10-15 persen dari total portofolio aset Anda."}}
+    {{"tag": "SKENARIO KONSUMEN & KELUARGA", "text": "**Tunda Konsumsi Impor:** Tunda upgrade gadget atau barang mewah non-primer, alihkan arus kas ekstra ke dana darurat likuid berbunga tinggi."}},
+    {{"tag": "SKENARIO PELAKU USAHA & UMKM", "text": "**Kunci Pasokan Lokal:** Negosiasikan kontrak pengadaan jangka panjang dan segera beralih ke pemasok bahan baku alternatif dalam negeri."}},
+    {{"tag": "SKENARIO INVESTOR PASAR MODAL", "text": "**Akumulasi Saham Berbasis Dolar:** Rotasikan portofolio ke emiten tambang dan komoditas ekspor yang justru meraup lonjakan laba saat dolar menguat."}}
   ],
-  "slide4_takeaway": "Emas adalah pelindung nilai daya beli dari inflasi, bukan instrumen cepat kaya semalam.",
-  "slide4_photo_query": "bank vault gold bar investment safe",
-  "fallback_theme_4": "bank",
+  "slide4_takeaway": "Rupiah boleh melemah, tapi strategi finansialmu tidak boleh ikut lumpuh.",
+  "slide4_photo_query": "jakarta sudirman central business district skyline",
+  "fallback_theme_4": "jakarta",
 
-  "verdict": "Kilau emas hari ini adalah cerminan ketidakpastian; keputusan terbaik lahir dari rasio keuangan sehat, bukan kepanikan pasar.",
-  "cta": "Apakah kamu memilih beli lagi di harga rekor ini, atau justru menjualnya untuk ambil untung? Tulis strategimu di komentar!",
-  "sources": ["Logam Mulia PT Antam Tbk", "Bank Indonesia (BI)", "Bloomberg Commodities", "Badan Pusat Statistik (BPS)"],
-  "slide5_photo_query": "stock market investor screens desk financial",
+  "verdict": "Pelemahan mata uang bukanlah kiamat finansial; pemenang krisis adalah mereka yang paham arah arus uang, bukan yang pasrah mengeluh.",
+  "cta": "Apakah gajimu saat ini sudah aman menghadapi kenaikan harga barang impor, atau kamu mulai cari side income? Bagikan strategimu di komentar!",
+  "sources": ["Bank Indonesia (BI)", "Federal Reserve (The Fed)", "Badan Pusat Statistik (BPS)", "Bloomberg Terminal"],
+  "slide5_photo_query": "financial investor screen trading desk",
   "fallback_theme_5": "investor"
 }}
 """
@@ -556,7 +549,7 @@ Kembalikan HANYA JSON murni tanpa markdown ```json.
     for model_name in candidate_models:
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={GEMINI_API_KEY}"
         try:
-            print(f"[Gemini] Mengolah data ({prog_cfg['name']}) dengan model: {model_name}...")
+            print(f"[Gemini] Mengolah data editorial ({prog_cfg['name']}) dengan model: {model_name}...")
             res = requests.post(url, json=payload, timeout=50)
             if res.status_code == 200:
                 raw = res.json()["candidates"][0]["content"]["parts"][0]["text"]
@@ -572,7 +565,7 @@ Kembalikan HANYA JSON murni tanpa markdown ```json.
 
 
 # ==============================================================================
-# 5. CONTENT BUILDER (MENYIAPKAN DATA 5 SLIDE PENUH)
+# 5. CONTENT BUILDER (MENYUSUN PAYLOAD LENGKAP 5 SLIDE)
 # ==============================================================================
 def build_metrika_content(
     analysis: Dict[str, Any],
@@ -586,7 +579,7 @@ def build_metrika_content(
         "date": today_str,
         "hook": analysis.get("hook", "Analisis Data Finansial Hari Ini"),
         "hero": {
-            "value": analysis.get("hero_value", "100%"),
+            "value": analysis.get("hero_value", "Level Krusial"),
             "label": analysis.get("hero_label", "acuan data pasar resmi terverifikasi"),
         },
         "hero_image": str(images["slide1"]),
@@ -597,38 +590,48 @@ def build_metrika_content(
 
         "slide_context": {
             "eyebrow": analysis.get("slide2_eyebrow", "01 / DOKUMENTASI FAKTA"),
-            "hook": analysis.get("slide2_hook", "Mengapa Isu Ini Mendadak Mencuat Sekarang?"),
+            "hook": analysis.get("slide2_hook", "Kenapa Dolar Tiba-tiba Menggila dan Bikin Rupiah Berdarah-darah?"),
             "points": analysis.get("slide2_points", [
-                "**Dinamika Pasar:** Pergerakan indeks dan sentimen investor global.",
-                "**Kebijakan Makro:** Respons otoritas dan regulator dalam menjaga stabilitas.",
-                "**Implikasi Domestik:** Pengaruh langsung ke daya beli masyarakat."
+                "**Kebijakan Moneter Global:** Bank sentral menahan suku bunga tinggi sehingga arus modal asing tersedot keluar.",
+                "**Beban Impor Bahan Baku:** Kebutuhan valas membengkak untuk membayar pasokan komoditas luar negeri.",
+                "**Kewajiban Utang Luar Negeri:** Korporasi domestik berebut menukar rupiah untuk melunasi utang jatuh tempo."
             ]),
+            "takeaway": analysis.get("slide2_takeaway", "Pelemahan kurs bukan sekadar angka di berita, tapi lonjakan biaya hidup nyata."),
         },
 
         "slide_metric": {
             "eyebrow": analysis.get("slide3_eyebrow", "02 / BEDAH DATA RISET"),
-            "hook": analysis.get("slide3_hook", "Dilema Dua Arah: Siapa Untung, Siapa Buntung?"),
-            "metric_value": analysis.get("slide3_metric_value", "+25,4%"),
-            "metric_label": analysis.get("slide3_metric_label", "perubahan rata-rata acuan pasar terverifikasi"),
-            "col1_title": analysis.get("slide3_col1_title", "Argumen Akumulasi"),
-            "col1_points": analysis.get("slide3_col1_points", ["Peluang pertumbuhan aset jangka panjang", "Ketahanan fundamental emiten"]),
-            "col2_title": analysis.get("slide3_col2_title", "Argumen Waspada"),
-            "col2_points": analysis.get("slide3_col2_points", ["Risiko volatilitas jangka pendek", "Penyesuaian likuiditas"]),
+            "hook": analysis.get("slide3_hook", "Berapa Beban yang Diam-diam Harus Ditanggung Dompet Kita?"),
+            "metric_value": analysis.get("slide3_metric_value", "-6,5%"),
+            "metric_label": analysis.get("slide3_metric_label", "depresiasi rupiah year-to-date terhadap dolar AS"),
+            "col1_title": analysis.get("slide3_col1_title", "Beban Konsumen Ritel"),
+            "col1_points": analysis.get("slide3_col1_points", [
+                "Harga barang elektronik dan gadget impor melonjak 8-12 persen.",
+                "Biaya pakan impor mengerek harga bahan pangan di pasar tradisional.",
+                "Cicilan dan pengeluaran berbasis valas kian membebani arus kas bulanan."
+            ]),
+            "col2_title": analysis.get("slide3_col2_title", "Beban Sektor Usaha"),
+            "col2_points": analysis.get("slide3_col2_points", [
+                "Margin industri manufaktur tergerus biaya bahan baku impor yang mahal.",
+                "Pelaku UMKM kesulitan menaikkan harga jual di tengah daya beli yang melandai.",
+                "Risiko efisiensi operasional jika pelemahan kurs berlanjut panjang."
+            ]),
+            "alert_text": analysis.get("slide3_alert_text", "Pelemahan tajam memicu efek domino penyesuaian harga di tingkat distributor."),
         },
 
         "slide_strategy": {
             "eyebrow": analysis.get("slide4_eyebrow", "03 / SKENARIO STRATEGIS"),
-            "hook": analysis.get("slide4_hook", "Tiga Skenario Menghadapi Fluktuasi Pasar"),
+            "hook": analysis.get("slide4_hook", "Tiga Benteng Finansial Sebelum Badai Inflasi Mengganas"),
             "scenarios": analysis.get("slide4_scenarios", [
-                {"tag": "SKENARIO JANGKA PANJANG", "text": "**Akumulasi Bertahap:** Lakukan pembelian berkala saat harga koreksi wajar."},
-                {"tag": "SKENARIO TAKTIS", "text": "**Realisasi Profit:** Kunci keuntungan jika target jangka pendek telah tercapai."},
-                {"tag": "SKENARIO MITIGASI", "text": "**Disiplin Portofolio:** Hindari keputusan impulsif akibat sentimen sesaat."}
+                {"tag": "SKENARIO KONSUMEN & KELUARGA", "text": "**Tunda Belanja Impor:** Tunda pembelian gadget/otomotif impor, amankan porsi dana darurat tunai."},
+                {"tag": "SKENARIO PELAKU USAHA & UMKM", "text": "**Kunci Pasokan Lokal:** Beralih ke bahan baku alternatif dalam negeri untuk selamatkan margin laba."},
+                {"tag": "SKENARIO INVESTOR PASAR MODAL", "text": "**Rotasi Aset Produktif:** Koleksi saham berbasis pendapatan dolar yang justru diuntungkan apresiasi kurs."}
             ]),
-            "takeaway": analysis.get("slide4_takeaway", "Aset berharga melindungi daya beli dari inflasi jangka panjang."),
+            "takeaway": analysis.get("slide4_takeaway", "Rupiah boleh melemah, tapi strategi finansialmu tidak boleh ikut lumpuh."),
         },
 
-        "verdict": analysis.get("verdict", "Keputusan terbaik lahir dari rasio keuangan sehat, bukan euforia sesaat."),
-        "cta": analysis.get("cta", "Bagaimana strategimu menyikapi dinamika pasar hari ini? Tulis di komentar!"),
+        "verdict": analysis.get("verdict", "Pemenang krisis adalah mereka yang paham arah arus uang, bukan yang pasrah mengeluh."),
+        "cta": analysis.get("cta", "Apakah gajimu saat ini sudah aman menghadapi kenaikan harga impor, atau kamu mulai cari side income? Tulis strategimu di komentar!"),
         "sources": analysis.get("sources") or prog_cfg["sources"],
     }
 
@@ -649,7 +652,7 @@ def send_outputs_to_telegram(
     clean_h = re.sub(r"</?red>", "", content["hook"])
 
     header_caption = (
-        f"📊 *{MEDIA_NAME.upper()} • JURNALISME DATA*\n\n"
+        f"📊 *{MEDIA_NAME.upper()} • JURNALISME DATA & RISET FINANSIAL*\n\n"
         f"*{clean_h}*\n\n"
         f"📌 *Angka Kunci:* {content['hero']['value']} ({content['hero']['label']})\n\n"
         f"⚖️ *Verdict Redaksi:*\n_{content['verdict']}_\n\n"
@@ -702,29 +705,29 @@ def main() -> None:
     # 1. Ingestion berita RSS
     news_item, supporting = fetch_latest_program_news(prog_cfg)
 
-    # 2. Analisis AI Gemini untuk 5 Slide Lengkap
+    # 2. Analisis AI Gemini untuk 5 Slide Lengkap dengan Copywriting Tajam
     analysis = analyze_with_gemini(news_item, supporting, prog_cfg)
 
-    # 3. Cari Foto Jurnalistik Nyata & Terverifikasi untuk SETIAP Slide (Anti-Anime & Anti-Halloween)
+    # 3. Cari Foto Jurnalistik Nyata & Terverifikasi untuk SETIAP Slide (Anti-Dokumen Scan & Anti-Buku Arsip)
     images: Dict[str, Path] = {}
     
     q1 = analysis.get("slide1_photo_query") or analysis.get("subject_title", "business finance")
-    f1 = analysis.get("fallback_theme_1", "gold" if "emas" in news_item["title"].lower() else "business")
+    f1 = analysis.get("fallback_theme_1", "rupiah")
     images["slide1"], _ = fetch_editorial_photo_with_meta(news_item, q1, HERO_IMG_PATH, f1)
 
-    q2 = analysis.get("slide2_photo_query") or "market trend chart stock"
+    q2 = analysis.get("slide2_photo_query") or "stock market trading chart"
     f2 = analysis.get("fallback_theme_2", "chart")
     images["slide2"], _ = fetch_editorial_photo_with_meta(news_item, q2, SLIDE2_IMG_PATH, f2)
 
-    q3 = analysis.get("slide3_photo_query") or "indonesia rupiah cash money"
-    f3 = analysis.get("fallback_theme_3", "money")
+    q3 = analysis.get("slide3_photo_query") or "currency exchange cash money"
+    f3 = analysis.get("fallback_theme_3", "currency_exchange")
     images["slide3"], _ = fetch_editorial_photo_with_meta(news_item, q3, SLIDE3_IMG_PATH, f3)
 
-    q4 = analysis.get("slide4_photo_query") or "bank vault safe investment"
-    f4 = analysis.get("fallback_theme_4", "bank")
+    q4 = analysis.get("slide4_photo_query") or "jakarta central business district"
+    f4 = analysis.get("fallback_theme_4", "jakarta")
     images["slide4"], _ = fetch_editorial_photo_with_meta(news_item, q4, SLIDE4_IMG_PATH, f4)
 
-    q5 = analysis.get("slide5_photo_query") or "investor looking at screen stock trading"
+    q5 = analysis.get("slide5_photo_query") or "financial investor screens trading desk"
     f5 = analysis.get("fallback_theme_5", "investor")
     images["slide5"], _ = fetch_editorial_photo_with_meta(news_item, q5, SLIDE5_IMG_PATH, f5)
 
@@ -739,7 +742,7 @@ def main() -> None:
     carousel_files = render_carousel_slides(content, CAROUSEL_DIR)
     print(f"[Render] Sukses merender {len(carousel_files)} slide carousel.")
 
-    # 6. Kirim Album Carousel ke Telegram (Video Dinonaktifkan sesuai Permintaan)
+    # 6. Kirim Album Carousel ke Telegram
     send_outputs_to_telegram(carousel_files, content, news_item)
 
     # 7. Update Cache Link
