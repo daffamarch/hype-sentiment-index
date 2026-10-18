@@ -279,6 +279,7 @@ def fetch_editorial_photo_with_meta(
     candidate_urls: List[str] = []
     meta_text = f"{subject_name} {news_item['title']} {news_item.get('summary', '')}"
 
+    # Hanya ambil foto artikel resmi terverifikasi dari website berita asal
     if BeautifulSoup is not None:
         try:
             resp = requests.get(
@@ -292,39 +293,27 @@ def fetch_editorial_photo_with_meta(
                     )
                     if meta and meta.get("content", "").startswith("http"):
                         val = meta["content"].strip()
+                        # Pastikan bukan domain terblokir atau logo generic
                         if not any(b in val.lower() for b in BLOCKED_IMAGE_DOMAINS):
-                            candidate_urls.append(val)
+                            if not any(x in val.lower() for x in ["logo", "icon", "banner-ad", "default", "placeholder"]):
+                                candidate_urls.append(val)
         except Exception:
             pass
-
-    search_q = f"{subject_name} Indonesia site:detik.com OR site:kompas.com OR site:kumparan.com"
-    bing_url = (
-        "https://www.bing.com/images/search?q="
-        + urllib.parse.quote(search_q)
-        + "&qft=+filterui:imagesize-large"
-    )
-    try:
-        b_resp = requests.get(bing_url, headers=HTTP_HEADERS, timeout=10)
-        if b_resp.status_code == 200:
-            matches = re.findall(r'murl&quot;:&quot;(https?://[^&]+?)&quot;', b_resp.text)
-            for m in matches[:6]:
-                if not any(b in m.lower() for b in BLOCKED_IMAGE_DOMAINS):
-                    candidate_urls.append(m)
-    except Exception:
-        pass
 
     for img_url in candidate_urls:
         try:
             r = requests.get(img_url, headers=HTTP_HEADERS, timeout=10)
-            if r.status_code == 200 and len(r.content) > 25_000:
+            if r.status_code == 200 and len(r.content) > 20_000:
                 pil_img = Image.open(io.BytesIO(r.content)).convert("RGB")
-                if pil_img.width >= 600 and pil_img.height >= 400:
+                # Hanya izinkan foto landscape berkualitas tinggi
+                if pil_img.width >= 600 and pil_img.height >= 350:
                     pil_img.save(save_path, format="JPEG", quality=92)
-                    print(f"[Photo] Foto berhasil diunduh untuk validasi: {img_url[:60]}...")
+                    print(f"[Photo] Foto artikel resmi berhasil diunduh: {img_url[:60]}...")
                     return save_path, f"{meta_text} {img_url}"
         except Exception:
             continue
 
+    # Jika tidak ada foto resmi terverifikasi, kembalikan None agar dirender sebagai infografis data SVG murni
     return None, meta_text
 
 
@@ -460,32 +449,33 @@ Format output JSON:
     else:  # ANGKA_BICARA
         instructions = f"""
 Kamu adalah Jurnalis Data media "{MEDIA_NAME}" untuk program "{prog_cfg['name']}".
-Misi: Menyajikan riset statistik gaya hidup, biaya hidup, dan ekonomi anak muda secara infografis.
+Misi: Menyajikan riset statistik, keuangan, pasar modal, dan tren ekonomi nyata secara infografis.
 
-GAYA HEADLINE EDITORIAL (@theeconomicinfluence):
-- Wajib tulis kalimat hook provokatif, sedikit satir, atau pertanyaan tajam ala @theeconomicinfluence.
-- Gunakan tag <red>...</red> untuk 2-4 kata kunci paling emosional/menohok (Contoh: 'IHSG Anjlok, <red>Danantara Justru Melihat Kesempatan</red> Lebih Besar').
+GAYA HEADLINE EDITORIAL:
+- Kalimat hook harus tajam, provokatif, dan berbobot data.
+- Gunakan tag <red>...</red> untuk 2-4 kata kunci paling emosional/menohok (Contoh: 'Investor Panik, <red>IHSG Terjun Bebas</red> Setelah Badai MSCI. Siapa Untung?').
 
 ATURAN ANTI-AI-SLOP:
-1. DATA VALID & MASUK AKAL: Angkat temuan statistik riil (seperti survei alokasi gaji, sewa kos, literasi investasi).
+1. DATA VALID & RELEVAN SESUAI TOPIK BERITA: Seluruh data, judul slide, dan poin analisis WAJIB 100% relevan dengan berita yang diberikan. DILARANG mencampuradukkan topik yang tidak relevan (seperti biaya sewa kos saat membahas saham/IHSG/MSCI).
 2. DILARANG MENGGUNAKAN EMOJI.
-3. NASKAH VOICEOVER: 50-70 kata narasi data yang menggugah pikiran.
+3. NASKAH VOICEOVER: 50-70 kata narasi data yang mengalir dan tajam.
 
 Format output JSON:
 {{
-  "subject_title": "Topik Riset atau Statistik (maks 26 karakter)",
-  "hook": "Riset BPS: <red>42% Gaji Anak Muda Habis</red> Cuma Buat Sewa Kos dan Makan.",
-  "hero_value": "42%",
-  "hero_label": "pendapatan bulanan habis untuk kebutuhan biaya kos dan makan",
-  "keywords": ["investasi", "gaji", "keuangan", "anak muda"],
-  "metric_value": "Rp 1,85 jt",
-  "metric_label": "rata-rata alokasi biaya sewa kamar kos per bulan di Jakarta",
-  "breakdown_left_title": "Pengeluaran Rutin",
-  "breakdown_left_points": ["Biaya sewa kos dan utilitas bulanan", "Alokasi makan harian dan transportasi"],
-  "breakdown_right_title": "Kapasitas Tabungan",
-  "breakdown_right_points": ["Hanya tersisa 10-15 persen untuk tabungan", "Buffer dana darurat belum terbentuk optimal"],
-  "verdict": "Hambatan terbesar bukan kurangnya niat, melainkan tekanan biaya hidup perkotaan.",
-  "cta": "Menurut kamu, pos pengeluaran apa yang paling menguras gaji setiap bulan? Tulis di komentar.",
+  "subject_title": "Topik Berita Utama (maks 26 karakter)",
+  "hook": "Investor Panik, <red>IHSG Terjun Bebas</red> Setelah Badai MSCI. Siapa Untung?",
+  "hero_value": "4.800",
+  "hero_label": "level psikologis IHSG yang berpotensi diuji pasca sentimen pasar modal",
+  "keywords": ["saham", "ihsg", "msci", "investasi"],
+  "slide_heading": "Dampak Sentimen Terhadap Pasar & Portofolio Ritel",
+  "metric_value": "Rp 12,4 Triliun",
+  "metric_label": "total net sell investor asing dalam sepekan terakhir",
+  "breakdown_left_title": "Dampak Pasar Modal",
+  "breakdown_left_points": ["Penurunan nilai portofolio saham kapitalisasi besar", "Sentimen jual jangka pendek akibat penyesuaian bobot indeks"],
+  "breakdown_right_title": "Strategi Investor",
+  "breakdown_right_points": ["Evaluasi ulang valuasi dan fundamental emiten", "Disiplin alokasi aset dan tidak panik melakukan aksi jual massal"],
+  "verdict": "Volatilitas pasar adalah bagian dari siklus; keputusan terbaik lahir dari data, bukan kepanikan sesaat.",
+  "cta": "Bagaimana strategi portofoliomu menghadapi fluktuasi ini? Tulis di komentar.",
   "voiceover_script": "Naskah narasi 50-70 kata lugas tanpa emoji."
 }}
 """
@@ -663,31 +653,39 @@ def build_metrika_content(
         }
 
     else:  # ANGKA_BICARA
+        slide_heading = analysis.get("slide_heading") or analysis.get("subject_title", "Bedah Data & Implikasi")
+        metric_val = analysis.get("metric_value") or analysis.get("hero_value", "100%")
+        metric_lbl = analysis.get("metric_label") or analysis.get("hero_label", "Analisis data terverifikasi")
+        left_title = analysis.get("breakdown_left_title", "Poin Analisis Utama")
+        left_points = analysis.get("breakdown_left_points", ["Faktor penggerak utama dari temuan data", "Dampak langsung terhadap kondisi finansial publik"])
+        right_title = analysis.get("breakdown_right_title", "Strategi & Implikasi")
+        right_points = analysis.get("breakdown_right_points", ["Langkah antisipasi dan evaluasi keputusan", "Peluang jangka panjang berbasis data riil"])
+
         return {
             "program": "ANGKA_BICARA",
             "date": today_str,
-            "hook": analysis.get("hook", "Kenapa banyak anak muda kesulitan menyisihkan tabungan?"),
+            "hook": analysis.get("hook", "Temuan data penting yang perlu kamu ketahui hari ini."),
             "hero": {
-                "value": analysis.get("hero_value", "42%"),
-                "label": analysis.get("hero_label", "gaji bulanan habis untuk kebutuhan tempat tinggal dan makan"),
+                "value": analysis.get("hero_value", "70%"),
+                "label": analysis.get("hero_label", "persentase temuan data resmi"),
             },
             "slides": [
                 {
-                    "heading": "Struktur Pengeluaran Anak Muda",
+                    "heading": slide_heading,
                     "metric": {
-                        "value": analysis.get("metric_value", "Rp 1,85 jt"),
-                        "label": analysis.get("metric_label", "rata-rata alokasi biaya kamar kos per bulan di Jakarta"),
+                        "value": metric_val,
+                        "label": metric_lbl,
                     },
                     "columns": [
                         {
-                            "title": analysis.get("breakdown_left_title", "Pos Pengeluaran Rutin"),
+                            "title": left_title,
                             "tone": "fact",
-                            "points": analysis.get("breakdown_left_points", ["Biaya sewa kamar dan utilitas bulanan", "Alokasi makan harian perkotaan"]),
+                            "points": left_points,
                         },
                         {
-                            "title": analysis.get("breakdown_right_title", "Kapasitas Tabungan"),
+                            "title": right_title,
                             "tone": "key",
-                            "points": analysis.get("breakdown_right_points", ["Hanya menyisakan porsi tipis untuk investasi", "Buffer dana darurat belum terbentuk"]),
+                            "points": right_points,
                         },
                     ],
                 }
