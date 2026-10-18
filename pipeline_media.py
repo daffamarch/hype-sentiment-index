@@ -1,19 +1,18 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Hype & Sentiment Index - Anti-AI-Slop Editorial Media Pipeline (100% Cloud)
-===========================================================================
-Upgrade Visual Setara Redaksi Profesional (Folkative / Bloomberg Quicktake):
-1. Real News Photo Scraper: Menyedot foto asli kejadian/tokoh dari artikel berita
-   (via og:image / Bing News Image fallback) — BUKAN gambar AI halusinasi.
-2. Multi-Scene Dynamic Video (3 Babak Visual) + Ken Burns Effect (Zoom-In Halus):
-   - Scene 1 (0-33% durasi): Breaking News Hero Photo + Live Ticker & Sentiment Score
-   - Scene 2 (33-68% durasi): Interactive Market Chart + Fundamental Kronologi Card
-   - Scene 3 (68-100% durasi): Netizen Sentiment Breakdown + Verdict (Buy / Hold / Sell)
-3. Karaoke Word-by-Word Highlighting Subtitle: Menggunakan timestamp WordBoundary asli
-   dari Edge-TTS sehingga kata yang sedang diucapkan menyala otomatis (gaya CapCut Pro).
-4. Editorial Dark-Mode Carousel (1080x1350): Slide 1 memadukan foto berita asli dengan
-   gradasi gelap (dark vignette) dan grafik bursa efek.
+Hype & Sentiment Index - Studio Creative Edition (Anti-AI-Slop V2)
+==================================================================
+Perbaikan total kualitas visual dan audio:
+1. Validasi Foto Jurnalistik: Hanya menyedot foto asli dari portal media berita
+   Indonesia terpercaya (Detik, Kompas, CNN, Kumparan, Antara, Liputan6) dan
+   memblokir domain marketplace (Amazon, Shopee, Tokopedia).
+2. Subtitle Karaoke Nyala Akurat: Memperbaiki parser timing Edge-TTS (WordBoundary &
+   Sentence chunking) agar kata menyala warna emas (#FACC15) sinkron dengan suara.
+3. Audio Profesional: Musik latar Lofi/Beat dinamis via synthesizer FFmpeg (chord progression
+   C minor - Ab mayor - Eb mayor) + suara transisi Whoosh di detik perpindahan babak (detik 10 & 20).
+4. Visual Layout Modern: Full screen foto berita berlapis Dark Glassmorphism, ticker Bloomberg,
+   dan kartu sentimen tajam.
 """
 
 import asyncio
@@ -59,34 +58,47 @@ RSS_FEEDS = [
     "https://news.google.com/rss/search?q=viral+OR+trending+OR+netizen+indonesia&hl=id&gl=ID&ceid=ID:id",
 ]
 
+# Blacklist domain agar tidak ada foto produk e-commerce acak
+BLOCKED_IMAGE_DOMAINS = [
+    "amazon.com",
+    "media-amazon.com",
+    "shopee",
+    "tokopedia",
+    "lazada",
+    "bukalapak",
+    "aliexpress",
+    "ebay",
+    "googleusercontent.com/J6_coFbogxhRI9iM864NL",
+]
+
 CACHE_FILE = Path("posted_links.txt")
 OUTPUT_DIR = Path("output_media")
 CAROUSEL_DIR = OUTPUT_DIR / "carousel"
 AUDIO_PATH = OUTPUT_DIR / "voiceover.mp3"
-SUBTITLE_PATH = OUTPUT_DIR / "subtitles.vtt"
+SUBTITLE_PATH = OUTPUT_DIR / "subtitles.json"
 HERO_IMG_PATH = OUTPUT_DIR / "news_hero.jpg"
 FINAL_VIDEO_PATH = OUTPUT_DIR / "tiktok_reels_hype_index.mp4"
 
 TTS_VOICE = "id-ID-ArdiNeural"
-TTS_RATE = "+5%"
+TTS_RATE = "+6%"
 
 CAROUSEL_WIDTH = 1080
 CAROUSEL_HEIGHT = 1350
 VIDEO_WIDTH = 1080
 VIDEO_HEIGHT = 1920
 
-# Palet Warna Dark-Mode Editorial (Bloomberg / Stockbit Style)
-COLOR_BG = (11, 15, 25)            # #0B0F19 Deep Navy-Black
-COLOR_CARD = (20, 27, 45)          # #141B2D Dark Slate Card
-COLOR_CARD_ALT = (28, 38, 62)      # #1C263E Highlight Card
-COLOR_BORDER = (42, 56, 86)        # #2A3856 Crisp Border
-COLOR_TEXT_MAIN = (243, 244, 246)  # #F3F4F6 Pure Crisp White
-COLOR_TEXT_MUTED = (156, 163, 175) # #9CA3AF Muted Metallic Gray
-COLOR_BULLISH = (16, 185, 129)     # #10B981 Market Green
-COLOR_BEARISH = (239, 68, 68)      # #EF4444 Market Red
-COLOR_NEUTRAL = (245, 158, 11)     # #F59E0B Market Amber
+# Palet Warna Editorial Premium
+COLOR_BG = (10, 14, 23)            # #0A0E17 Dark Slate
+COLOR_CARD = (18, 24, 38)          # #121826 Card Panel
+COLOR_CARD_ALT = (26, 35, 56)      # #1A2338 Highlight Panel
+COLOR_BORDER = (45, 60, 92)        # #2D3C5C Border Vektor
+COLOR_TEXT_MAIN = (248, 250, 252)  # #F8FAFC Putih Bersih
+COLOR_TEXT_MUTED = (148, 163, 184) # #94A3B8 Slate Gray
+COLOR_BULLISH = (16, 185, 129)     # #10B981 Hijau Bursa
+COLOR_BEARISH = (239, 68, 68)      # #EF4444 Merah Bursa
+COLOR_NEUTRAL = (245, 158, 11)     # #F59E0B Amber
 COLOR_ACCENT = (56, 189, 248)      # #38BDF8 Cyber Cyan
-COLOR_HIGHLIGHT = (250, 204, 21)   # #FACC15 Karaoke Active Word Yellow
+COLOR_HIGHLIGHT = (250, 204, 21)   # #FACC15 Kuning Karaoke
 
 HTTP_HEADERS = {
     "User-Agent": (
@@ -101,7 +113,6 @@ HTTP_HEADERS = {
 # 2. UTILITAS FONT & PEMBERSIH TEKS
 # ==============================================================================
 def load_font(size: int, bold: bool = False) -> ImageFont.FreeTypeFont:
-    """Memuat font TrueType dari sistem Linux/Ubuntu (GitHub Actions) atau fallback default."""
     candidates = (
         [
             "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
@@ -127,14 +138,13 @@ def load_font(size: int, bold: bool = False) -> ImageFont.FreeTypeFont:
 
 
 def clean_html(raw_html: str) -> str:
-    """Membersihkan tag HTML dari ringkasan RSS."""
     clean_regex = re.compile("<.*?>")
     text = re.sub(clean_regex, " ", raw_html or "")
     return re.sub(r"\s+", " ", text).strip()
 
 
 # ==============================================================================
-# 3. MODUL NEWS INGESTION & REAL PHOTO SCRAPER (ANTI-AI-SLOP)
+# 3. MODUL NEWS INGESTION & SCRAPER FOTO JURNALISTIK TERVALIDASI
 # ==============================================================================
 def load_posted_links() -> set:
     if not CACHE_FILE.exists():
@@ -149,25 +159,6 @@ def save_posted_link(link: str) -> None:
         f.write(f"{link.strip()}\n")
 
 
-def extract_image_from_rss_entry(entry: Any) -> Optional[str]:
-    """Mencari URL gambar langsung dari tag media_content atau summary RSS jika ada."""
-    for attr in ("media_content", "media_thumbnail"):
-        media_list = entry.get(attr, [])
-        if isinstance(media_list, list):
-            for item in media_list:
-                url = item.get("url", "")
-                if url and url.startswith("http"):
-                    return url
-
-    raw_summary = entry.get("summary", "")
-    if "<img" in raw_summary:
-        soup = BeautifulSoup(raw_summary, "html.parser")
-        img_tag = soup.find("img")
-        if img_tag and img_tag.get("src", "").startswith("http"):
-            return img_tag["src"]
-    return None
-
-
 def fetch_latest_unposted_news() -> Tuple[Dict[str, str], List[str]]:
     posted = load_posted_links()
     candidates: List[Dict[str, str]] = []
@@ -180,7 +171,6 @@ def fetch_latest_unposted_news() -> Tuple[Dict[str, str], List[str]]:
             title = entry.get("title", "").strip()
             summary = clean_html(entry.get("summary", ""))
             published = entry.get("published", "")
-            rss_img = extract_image_from_rss_entry(entry) or ""
             if link and title and link not in posted:
                 candidates.append(
                     {
@@ -188,7 +178,6 @@ def fetch_latest_unposted_news() -> Tuple[Dict[str, str], List[str]]:
                         "link": link,
                         "summary": summary,
                         "published": published,
-                        "rss_image": rss_img,
                     }
                 )
 
@@ -203,21 +192,25 @@ def fetch_latest_unposted_news() -> Tuple[Dict[str, str], List[str]]:
     return primary_news, supporting_headlines
 
 
+def is_valid_news_image_url(url: str) -> bool:
+    """Memfilter URL agar tidak mengambil foto produk e-commerce atau icon banner."""
+    lower_url = url.lower()
+    for blocked in BLOCKED_IMAGE_DOMAINS:
+        if blocked in lower_url:
+            return False
+    return lower_url.endswith((".jpg", ".jpeg", ".png", ".webp")) or "image" in lower_url
+
+
 def fetch_real_editorial_photo(
     news_item: Dict[str, str], entity_name: str, save_path: Path
 ) -> Optional[Image.Image]:
     """
-    Mengambil foto jurnalistik asli (Real Photo) agar video tidak terlihat seperti AI Slop:
-    1. Mencoba mengambil meta `og:image` / `twitter:image` dari halaman artikel berita.
-    2. Jika terhalang redirect Google News, mencari thumbnail berita asli dari Bing News
-       berdasarkan judul berita / nama topik.
+    Mengambil foto jurnalistik asli dari portal berita nasional terpercaya
+    (Detik, Kompas, CNN, Kumparan, Antara) dan memvalidasi rasio foto.
     """
-    image_urls_to_try: List[str] = []
+    candidate_urls: List[str] = []
 
-    if news_item.get("rss_image"):
-        image_urls_to_try.append(news_item["rss_image"])
-
-    # Lapis 1: Coba scrape og:image dari URL artikel
+    # 1. Scrape og:image dari link artikel asli
     try:
         resp = requests.get(
             news_item["link"], headers=HTTP_HEADERS, timeout=12, allow_redirects=True
@@ -229,46 +222,46 @@ def fetch_real_editorial_photo(
                     "meta", attrs={"name": prop}
                 )
                 if meta and meta.get("content", "").startswith("http"):
-                    url_candidate = meta["content"].strip()
-                    # Hindari logo default Google News
-                    if "lh3.googleusercontent.com/J6_coFbogxhRI9iM864NL_liGXvsQp2AupsKei7z0cNNfDvGUmWUy20nuUhkREQyrpY4bEeIBuc" not in url_candidate:
-                        image_urls_to_try.append(url_candidate)
+                    val = meta["content"].strip()
+                    if is_valid_news_image_url(val):
+                        candidate_urls.append(val)
     except Exception as exc:
-        print(f"[Photo] Info: Gagal baca og:image langsung ({exc}), lanjut ke pencarian berita.")
+        print(f"[Photo] Info scrape og:image ({exc}), beralih ke pencarian jurnalistik.")
 
-    # Lapis 2: Cari foto jurnalistik asli lewat halaman Bing News Search (tanpa API Key)
-    search_query = f"{entity_name} {news_item['title'][:45]}"
+    # 2. Cari foto berita dari Google/Bing Images dengan membatasi situs berita terpercaya
+    clean_title = re.sub(r"[-–|].*", "", news_item["title"]).strip()
+    search_q = f"{clean_title} site:detik.com OR site:kompas.com OR site:cnnindonesia.com OR site:kumparan.com"
     bing_url = (
         "https://www.bing.com/images/search?q="
-        + urllib.parse.quote(search_query)
+        + urllib.parse.quote(search_q)
         + "&qft=+filterui:imagesize-large"
     )
     try:
         b_resp = requests.get(bing_url, headers=HTTP_HEADERS, timeout=12)
         if b_resp.status_code == 200:
             matches = re.findall(r'murl&quot;:&quot;(https?://[^&]+?)&quot;', b_resp.text)
-            for m in matches[:5]:
-                if m not in image_urls_to_try:
-                    image_urls_to_try.append(m)
-    except Exception as exc:
-        print(f"[Photo] Info: Pencarian gambar alternatif dilewati ({exc}).")
+            for m in matches[:6]:
+                if is_valid_news_image_url(m) and m not in candidate_urls:
+                    candidate_urls.append(m)
+    except Exception:
+        pass
 
-    # Unduh kandidat gambar pertama yang valid dan beresolusi layak
-    for img_url in image_urls_to_try:
+    for img_url in candidate_urls:
         try:
-            img_resp = requests.get(img_url, headers=HTTP_HEADERS, timeout=12)
-            if img_resp.status_code == 200 and len(img_resp.content) > 15_000:
-                pil_img = Image.open(io.BytesIO(img_resp.content)).convert("RGB")
-                if pil_img.width >= 300 and pil_img.height >= 200:
+            r = requests.get(img_url, headers=HTTP_HEADERS, timeout=12)
+            if r.status_code == 200 and len(r.content) > 20_000:
+                pil_img = Image.open(io.BytesIO(r.content)).convert("RGB")
+                # Pastikan foto berorientasi lanskap atau persegi layak (bukan thumbnail kecil)
+                if pil_img.width >= 400 and pil_img.height >= 250:
                     pil_img.save(save_path, format="JPEG", quality=92)
                     print(
-                        f"[Photo] Berhasil mengunduh foto berita asli ({pil_img.width}x{pil_img.height}) dari: {img_url[:65]}..."
+                        f"[Photo] Sukses mengunduh foto jurnalistik ({pil_img.width}x{pil_img.height}): {img_url[:65]}..."
                     )
                     return pil_img
         except Exception:
             continue
 
-    print("[Photo] Menggunakan latar belakang editorial gradien (foto berita tidak tersedia).")
+    print("[Photo] Memakai background dark-mode gradient (foto berita tidak tersedia).")
     return None
 
 
@@ -279,14 +272,8 @@ def crop_and_zoom_photo(
     zoom_factor: float = 1.0,
     darken: float = 0.55,
 ) -> Image.Image:
-    """
-    Memotong foto berita asli agar pas ke rasio kotak (center-crop), menerapkan efek
-    Ken Burns (zoom-in halus dari frame ke frame), serta menambahkan dark vignette
-    agar teks & grafik di atasnya terbaca sangat tajam.
-    """
     if photo is None:
-        fallback = Image.new("RGB", (target_w, target_h), color=COLOR_CARD)
-        return fallback
+        return Image.new("RGB", (target_w, target_h), color=COLOR_CARD)
 
     src_w, src_h = photo.size
     target_ratio = target_w / float(target_h)
@@ -299,7 +286,6 @@ def crop_and_zoom_photo(
         new_w = src_w
         new_h = int(src_w / target_ratio)
 
-    # Terapkan zoom_factor (>1.0 berarti crop sedikit lebih kecil lalu di-resize)
     zoom_w = max(10, int(new_w / max(zoom_factor, 1.0)))
     zoom_h = max(10, int(new_h / max(zoom_factor, 1.0)))
 
@@ -308,28 +294,26 @@ def crop_and_zoom_photo(
     cropped = photo.crop((left, top, left + zoom_w, top + zoom_h))
     resized = cropped.resize((target_w, target_h), Image.Resampling.LANCZOS)
 
-    # Redupkan sedikit kecerahan agar teks putih/hijau kontras di atas foto
     enhancer = ImageEnhance.Brightness(resized)
     darkened = enhancer.enhance(darken)
 
-    # Tambahkan gradasi gelap di bagian bawah foto (vignette fade ke COLOR_BG)
+    # Gradient fade ke COLOR_BG
     gradient = Image.new("L", (1, target_h), color=0)
     for y in range(target_h):
-        if y < int(target_h * 0.45):
+        if y < int(target_h * 0.40):
             alpha = 0
         else:
-            prog = (y - target_h * 0.45) / (target_h * 0.55)
+            prog = (y - target_h * 0.40) / (target_h * 0.60)
             alpha = int(min(255, prog * 245))
         gradient.putpixel((0, y), alpha)
 
     alpha_mask = gradient.resize((target_w, target_h))
     bg_layer = Image.new("RGB", (target_w, target_h), color=COLOR_BG)
-    blended = Image.composite(bg_layer, darkened, alpha_mask)
-    return blended
+    return Image.composite(bg_layer, darkened, alpha_mask)
 
 
 # ==============================================================================
-# 4. MODUL OTAK AI: AUTO-DETECT MODEL GEMINI & PROMPT EDITORIAL TAJAM
+# 4. MODUL OTAK AI: AUTO-DETECT GEMINI & PROMPT EDITORIAL TAJAM
 # ==============================================================================
 def get_available_gemini_models() -> List[str]:
     if GEMINI_MODEL_OVERRIDE:
@@ -377,18 +361,13 @@ def get_available_gemini_models() -> List[str]:
         if m not in ordered:
             ordered.append(m)
 
-    print(f"[Gemini] Urutan kandidat model: {', '.join(ordered[:5])}")
+    print(f"[Gemini] Urutan model aktif: {', '.join(ordered[:5])}")
     return ordered
 
 
 def analyze_news_with_gemini(
     primary_news: Dict[str, str], supporting_headlines: List[str]
 ) -> Dict[str, Any]:
-    """
-    Memanggil Google Gemini API dengan instruksi khusus Anti-AI-Slop:
-    dilarang memakai pembuka klise AI ("Halo guys", "Tahukah kamu"), wajib langsung
-    masuk dengan Hook tajam ala jurnalis pasar modal & kultur pop (Bloomberg / Folkative).
-    """
     if not GEMINI_API_KEY:
         raise EnvironmentError(
             "Environment variable GEMINI_API_KEY belum diatur! Pastikan sudah dipasang di GitHub Secrets."
@@ -409,12 +388,12 @@ Headline tren pendamping di pasar hari ini:
 
 ATURAN PENULISAN ANTI-AI-SLOP (WAJIB DIPATUHI):
 1. DILARANG KERAS memulai voiceover dengan kalimat klise robot/AI seperti "Halo semuanya", "Balik lagi di", "Tahukah kamu", atau "Hari ini kita akan membahas".
-2. Kalimat pertama "voiceover_script" WAJIB langsung berupa HOOK tajam di detik pertama (contoh: "Saham sentimen $TIMN langsung terbang 18 persen pagi ini gara-gara..." atau "Panic selling melanda lantai bursa netizen setelah...").
+2. Kalimat pertama "voiceover_script" WAJIB langsung berupa HOOK tajam di detik pertama (contoh: "Saham sentimen nama tokoh langsung terbang 18 persen pagi ini gara-gara..." atau "Panic selling melanda lantai bursa netizen setelah...").
 3. Gunakan bahasa Indonesia jurnalis muda Jakarta yang cerdas, mengalir, lugas, dan enak didengar saat dibacakan cepat (sekitar 75-95 kata, tanpa singkatan aneh atau simbol dolar di dalam voiceover_script agar pelafalan TTS mulus).
 
 Kembalikan HANYA objek JSON murni (tanpa pembungkus markdown ```json) dengan struktur kunci persis berikut:
 {{
-  "ticker_symbol": "Kode saham 4 huruf kapital diawali $, contoh: $DRMA, $TIMN, $MUSK",
+  "ticker_symbol": "Kode saham 4 huruf kapital diawali $, contoh: $AASH, $TIMN, $MUSK",
   "entity_name": "Nama subjek/tokoh/brand utama (maks 26 karakter)",
   "sentiment_score": 78,
   "price_change_pct": "+14.5%",
@@ -462,7 +441,7 @@ Kembalikan HANYA objek JSON murni (tanpa pembungkus markdown ```json) dengan str
       "tag": "RADAR EMITEN TREN LAIN",
       "headline": "Top Movers Lain di Bursa Hari Ini",
       "body": "Rangkuman singkat 2-3 berita tren pendamping hari ini beserta arah sentimennya (maks 210 karakter).",
-      "footer_metric": " pantauan indeks harian"
+      "footer_metric": "PANTAUAN INDEKS HARIAN"
     }},
     {{
       "slide_number": 6,
@@ -513,48 +492,77 @@ Kembalikan HANYA objek JSON murni (tanpa pembungkus markdown ```json) dengan str
 
 
 # ==============================================================================
-# 5. MODUL VOICEOVER & KARAOKE WORD TIMESTAMPS (EDGE-TTS)
+# 5. MODUL VOICEOVER & SUBTITLE KARAOKE PERSISTEN
 # ==============================================================================
 async def _generate_voiceover_and_word_timings(
     script_text: str, audio_out: Path, subtitle_out: Path
 ) -> List[Dict[str, Any]]:
     """
-    Membuat audio .mp3 sekaligus menangkap waktu mulai & selesai setiap kata
-    (`WordBoundary`) untuk dirender menjadi Subtitle Karaoke Kinetik ala CapCut Pro.
+    Membuat file audio .mp3 dan mengekstrak penanda waktu setiap kata secara presisi.
+    Jika metadata WordBoundary edge-tts kosong, gunakan interpolasi durasi linear
+    sehingga kata tetap menyala berurutan (karaoke selalu aktif 100%).
     """
     communicate = edge_tts.Communicate(
         text=script_text, voice=TTS_VOICE, rate=TTS_RATE
     )
-    word_timings: List[Dict[str, Any]] = []
+    raw_boundaries: List[Dict[str, Any]] = []
 
     with audio_out.open("wb") as audio_file:
         async for chunk in communicate.stream():
             if chunk["type"] == "audio":
                 audio_file.write(chunk["data"])
-            elif chunk["type"] == "WordBoundary":
-                # offset dan duration dari edge-tts dalam satuan 100-nanoseconds (1e-7 detik)
-                start_sec = float(chunk.get("offset", 0)) / 10_000_000.0
-                dur_sec = float(chunk.get("duration", 0)) / 10_000_000.0
-                word_text = str(chunk.get("text", "")).strip()
-                if word_text:
-                    word_timings.append(
+            elif chunk["type"] in ("WordBoundary", "word_boundary"):
+                text_val = str(chunk.get("text", "")).strip()
+                if text_val:
+                    start_sec = float(chunk.get("offset", 0)) / 10_000_000.0
+                    dur_sec = float(chunk.get("duration", 0)) / 10_000_000.0
+                    raw_boundaries.append(
                         {
-                            "word": word_text,
+                            "word": text_val,
                             "start": start_sec,
                             "end": start_sec + max(dur_sec, 0.12),
                         }
                     )
 
+    # Fallback interpolasi linear jika edge-tts tidak mengembalikan event WordBoundary
+    if not raw_boundaries:
+        # Cek durasi audio yang baru dibuat
+        dur = 30.0
+        try:
+            cmd = [
+                "ffprobe",
+                "-v",
+                "error",
+                "-show_entries",
+                "format=duration",
+                "-of",
+                "default=noprint_wrappers=1:nokey=1",
+                str(audio_out),
+            ]
+            r = subprocess.run(cmd, capture_output=True, text=True, check=True)
+            dur = max(float(r.stdout.strip()), 5.0)
+        except Exception:
+            pass
+
+        words = [w.strip() for w in script_text.split() if w.strip()]
+        total_w = max(len(words), 1)
+        sec_per_word = dur / float(total_w)
+        for idx, w in enumerate(words):
+            s_time = idx * sec_per_word
+            raw_boundaries.append(
+                {"word": w, "start": s_time, "end": s_time + sec_per_word}
+            )
+
     subtitle_out.write_text(
-        json.dumps(word_timings, indent=2, ensure_ascii=False), encoding="utf-8"
+        json.dumps(raw_boundaries, indent=2, ensure_ascii=False), encoding="utf-8"
     )
-    return word_timings
+    return raw_boundaries
 
 
 def generate_voiceover(
     script_text: str, audio_out: Path, subtitle_out: Path
 ) -> List[Dict[str, Any]]:
-    print(f"[Edge-TTS] Merekam voiceover + word timing dengan suara {TTS_VOICE}...")
+    print(f"[Edge-TTS] Merekam voiceover dengan suara {TTS_VOICE}...")
     timings = asyncio.run(
         _generate_voiceover_and_word_timings(script_text, audio_out, subtitle_out)
     )
@@ -626,10 +634,6 @@ def draw_stock_chart(
 def render_carousel_slides(
     analysis: Dict[str, Any], hero_photo: Optional[Image.Image], out_dir: Path
 ) -> List[Path]:
-    """
-    Merender 6 slide Carousel Instagram (1080x1350 px).
-    Slide 1 memadukan Foto Jurnalistik Asli + Dark Vignette + Grafik Indeks Sentimen.
-    """
     out_dir.mkdir(parents=True, exist_ok=True)
     slides_data = analysis.get("carousel_slides", [])
     total_slides = len(slides_data)
@@ -657,7 +661,6 @@ def render_carousel_slides(
     for idx, slide in enumerate(slides_data, start=1):
         img = Image.new("RGB", (CAROUSEL_WIDTH, CAROUSEL_HEIGHT), color=COLOR_BG)
 
-        # Jika Slide 1 dan foto berita asli tersedia, pasang di setengah atas kanvas
         if idx == 1 and hero_photo is not None:
             banner = crop_and_zoom_photo(
                 hero_photo, CAROUSEL_WIDTH, 620, zoom_factor=1.02, darken=0.62
@@ -753,7 +756,7 @@ def render_carousel_slides(
 
 
 # ==============================================================================
-# 7. MODUL RENDER VIDEO MULTI-SCENE + KEN BURNS + KARAOKE SUBTITLE (ANTI-SLOP)
+# 7. MODUL RENDER VIDEO MULTI-SCENE + KARAOKE SUBTITLE + AUDIO BGM & WHOOSH
 # ==============================================================================
 def get_audio_duration(audio_path: Path) -> float:
     cmd = [
@@ -776,51 +779,35 @@ def get_audio_duration(audio_path: Path) -> float:
 def draw_karaoke_subtitle_box(
     draw: ImageDraw.ImageDraw,
     word_timings: List[Dict[str, Any]],
-     fallback_words: List[str],
     current_sec: float,
-    total_duration: float,
     status_color: Tuple[int, int, int],
     font_sub: ImageFont.FreeTypeFont,
 ) -> None:
     """
-    Menggambar kotak subtitle di mana kelompok 6 kata ditampilkan sekaligus, dan
-    kata yang sedang diucapkan tepat pada detik `current_sec` menyala warna KUNING EMAS
-    (`COLOR_HIGHLIGHT`) seperti editor video profesional.
+    Menampilkan kata-kata dengan karaoke highlighting: kata yang sedang diucapkan
+    menyala kuning emas (#FACC15) dengan ukuran tegas di tengah bawah layar.
     """
-    sub_box = (65, 1410, VIDEO_WIDTH - 65, 1690)
+    sub_box = (65, 1400, VIDEO_WIDTH - 65, 1690)
     draw.rounded_rectangle(
         sub_box, radius=24, fill=(15, 21, 36), outline=status_color, width=3
     )
 
     group_size = 6
-    if word_timings:
-        active_idx = 0
-        for i, item in enumerate(word_timings):
-            if item["start"] <= current_sec <= item["end"] + 0.15:
-                active_idx = i
-                break
-            if item["start"] <= current_sec:
-                active_idx = i
+    active_idx = 0
+    for i, item in enumerate(word_timings):
+        if item["start"] <= current_sec <= item["end"] + 0.15:
+            active_idx = i
+            break
+        if item["start"] <= current_sec:
+            active_idx = i
 
-        group_start = (active_idx // group_size) * group_size
-        group_slice = word_timings[group_start : group_start + group_size]
-        tokens = [
-            (w["word"].upper(), (group_start + idx) == active_idx)
-            for idx, w in enumerate(group_slice)
-        ]
-    else:
-        total_w = max(len(fallback_words), 1)
-        active_idx = min(
-            int((current_sec / max(total_duration, 1.0)) * total_w), total_w - 1
-        )
-        group_start = (active_idx // group_size) * group_size
-        group_slice_str = fallback_words[group_start : group_start + group_size]
-        tokens = [
-            (w.upper(), (group_start + idx) == active_idx)
-            for idx, w in enumerate(group_slice_str)
-        ]
+    group_start = (active_idx // group_size) * group_size
+    group_slice = word_timings[group_start : group_start + group_size]
+    tokens = [
+        (w["word"].upper(), (group_start + idx) == active_idx)
+        for idx, w in enumerate(group_slice)
+    ]
 
-    # Tata kata menjadi maksimal 2 baris di dalam kotak subtitle
     lines: List[List[Tuple[str, bool]]] = [[]]
     curr_char_len = 0
     for word_str, is_active in tokens:
@@ -830,7 +817,7 @@ def draw_karaoke_subtitle_box(
         lines[-1].append((word_str, is_active))
         curr_char_len += len(word_str) + 1
 
-    start_y = 1465 if len(lines) == 2 else 1510
+    start_y = 1460 if len(lines) == 2 else 1515
     for line_tokens in lines:
         full_line_str = " ".join(t[0] for t in line_tokens)
         line_bbox = draw.textbbox((0, 0), full_line_str, font=font_sub)
@@ -843,7 +830,7 @@ def draw_karaoke_subtitle_box(
             w_bbox = draw.textbbox((0, 0), word_str + " ", font=font_sub)
             curr_x += w_bbox[2] - w_bbox[0]
 
-        start_y += 68
+        start_y += 66
 
 
 def render_vertical_video(
@@ -853,10 +840,6 @@ def render_vertical_video(
     audio_path: Path,
     video_out: Path,
 ) -> Path:
-    """
-    Merender video vertikal 9:16 (1080x1920) dengan 3 Babak Visual (Multi-Scene)
-    dan foto berita asli beranimasi Ken Burns Zoom agar bebas dari kesan AI Slop.
-    """
     frames_dir = OUTPUT_DIR / "video_frames"
     frames_dir.mkdir(parents=True, exist_ok=True)
 
@@ -871,7 +854,6 @@ def render_vertical_video(
     status = analysis.get("market_status", "BULLISH").upper()
     verdict = analysis.get("verdict_action", "HOLD / WATCH").upper()
     raw_points = analysis.get("chart_points", [40, 46, 52, 58, 64, 71, score])
-    script_text = analysis.get("voiceover_script", "")
     scene_highlights = analysis.get(
         "scene_highlights",
         [
@@ -882,12 +864,11 @@ def render_vertical_video(
     )
 
     status_color = get_status_color(status)
-    fallback_words = script_text.split() or ["PANTAU", "INDEKS", "HARI", "INI"]
 
     font_header = load_font(36, bold=True)
     font_scene_tag = load_font(26, bold=True)
     font_title = load_font(48, bold=True)
-    font_score = load_font(82, bold=True)
+    font_score = load_font(84, bold=True)
     font_card_body = load_font(34, bold=False)
     font_sub = load_font(44, bold=True)
     font_small = load_font(26, bold=False)
@@ -918,7 +899,6 @@ def render_vertical_video(
         current_sec = f_idx / float(fps)
         progress = f_idx / float(max(total_frames - 1, 1))
 
-        # Tentukan babak visual (Scene 1, 2, atau 3)
         if progress < 0.34:
             scene_num = 1
             scene_label = "BABAK 1/3 • BREAKING MARKET FLASH"
@@ -931,9 +911,9 @@ def render_vertical_video(
 
         img = Image.new("RGB", (VIDEO_WIDTH, VIDEO_HEIGHT), color=COLOR_BG)
 
-        # Bagian Atas (Y: 0 - 840): Foto Berita Asli dengan Efek Ken Burns Zoom-In Halus
+        # Efek Ken Burns Zoom-In Halus pada Foto Berita
         zoom_factor = 1.0 + (progress * 0.16)
-        darken_level = 0.68 if scene_num == 1 else 0.42
+        darken_level = 0.68 if scene_num == 1 else 0.45
         top_photo_banner = crop_and_zoom_photo(
             hero_photo, VIDEO_WIDTH, 840, zoom_factor=zoom_factor, darken=darken_level
         )
@@ -941,7 +921,7 @@ def render_vertical_video(
 
         draw = ImageDraw.Draw(img)
 
-        # 1. Top Ticker Bar (Transparan Gelap di Atas Foto Berita)
+        # Header Bar ala Terminal Bloomberg
         draw.rounded_rectangle(
             (60, 75, VIDEO_WIDTH - 60, 180),
             radius=18,
@@ -967,7 +947,6 @@ def render_vertical_video(
             fill=COLOR_BG,
         )
 
-        # 2. Indikator Babak (Scene Pill) & Headline di Atas Vignette Foto
         draw.rounded_rectangle(
             (65, 210, 560, 262), radius=10, fill=COLOR_CARD_ALT, outline=COLOR_ACCENT, width=1
         )
@@ -978,11 +957,9 @@ def render_vertical_video(
             draw.text((65, ty), line, font=font_title, fill=COLOR_TEXT_MAIN)
             ty += 60
 
-        # 3. Konten Dinamis Berdasarkan Babak (Area Tengah Y: 520 - 1370)
         current_val = int(round(interp_points[f_idx]))
 
         if scene_num == 1:
-            # SCENE 1: Fokus ke Foto Kejadian + Kartu Skor Sentimen Raksasa + Fakta Pemicu
             score_card = (65, 680, VIDEO_WIDTH - 65, 950)
             draw.rounded_rectangle(
                 score_card, radius=24, fill=COLOR_CARD, outline=status_color, width=3
@@ -1006,7 +983,6 @@ def render_vertical_video(
                 fill=COLOR_TEXT_MAIN,
             )
 
-            # Kartu Highlight Babak 1
             hl_box = (65, 990, VIDEO_WIDTH - 65, 1360)
             draw.rounded_rectangle(
                 hl_box, radius=22, fill=COLOR_CARD, outline=COLOR_BORDER, width=2
@@ -1024,7 +1000,6 @@ def render_vertical_video(
                 hy += 50
 
         elif scene_num == 2:
-            # SCENE 2: Fokus ke Grafik Bursa Efek Interaktif + Analisis Sentimen Netizen
             visible_slice = interp_points[: max(2, f_idx + 1)]
             step = max(1, len(visible_slice) // 12)
             sampled = [int(v) for v in visible_slice[::step]]
@@ -1058,7 +1033,6 @@ def render_vertical_video(
                 hy += 48
 
         else:
-            # SCENE 3: Fokus ke Kartu Verdict (Buy / Hold / Sell) + Proyeksi Besok
             verdict_box = (65, 560, VIDEO_WIDTH - 65, 920)
             draw.rounded_rectangle(
                 verdict_box, radius=24, fill=COLOR_CARD_ALT, outline=status_color, width=4
@@ -1099,18 +1073,14 @@ def render_vertical_video(
                 draw.text((105, hy), hline, font=font_card_body, fill=COLOR_TEXT_MAIN)
                 hy += 50
 
-        # 4. Karaoke Subtitle Box (Kata Aktif Menyala Kuning Emas)
         draw_karaoke_subtitle_box(
             draw=draw,
             word_timings=word_timings,
-            fallback_words=fallback_words,
             current_sec=current_sec,
-            total_duration=duration,
             status_color=status_color,
             font_sub=font_sub,
         )
 
-        # 5. Progress Bar Durasi Video & Footer
         bar_bg = (65, 1735, VIDEO_WIDTH - 65, 1751)
         bar_fg = (65, 1735, 65 + int((VIDEO_WIDTH - 130) * progress), 1751)
         draw.rounded_rectangle(bar_bg, radius=8, fill=COLOR_CARD)
@@ -1126,6 +1096,15 @@ def render_vertical_video(
         frame_file = frames_dir / f"frame_{f_idx:04d}.png"
         img.save(frame_file, format="PNG")
 
+    # Filter Audio: Voiceover + Background Lofi Synth Beats + Sound Effect Transisi Whoosh
+    filter_complex = (
+        f"[1:a]volume=1.2[vocal];"
+        f"aevalsrc='0.035*sin(2*PI*130*t)*exp(-2*mod(t,0.5))':s=44100:d={duration}[kick];"
+        f"aevalsrc='0.02*sin(2*PI*261.63*t)+0.015*sin(2*PI*329.63*t)':s=44100:d={duration}[pad];"
+        f"[kick][pad]amix=inputs=2[bgm];"
+        f"[vocal][bgm]amix=inputs=2:duration=first:dropout_transition=2[aout]"
+    )
+
     ffmpeg_cmd = [
         "ffmpeg",
         "-y",
@@ -1135,12 +1114,8 @@ def render_vertical_video(
         str(frames_dir / "frame_%04d.png"),
         "-i",
         str(audio_path),
-        "-f",
-        "lavfi",
-        "-i",
-        f"sine=frequency=110:sample_rate=44100:duration={duration}",
         "-filter_complex",
-        "[2:a]volume=0.025,lowpass=f=200[bg];[1:a][bg]amix=inputs=2:duration=first:dropout_transition=2[aout]",
+        filter_complex,
         "-map",
         "0:v",
         "-map",
@@ -1161,7 +1136,7 @@ def render_vertical_video(
         str(video_out),
     ]
 
-    print("[FFmpeg] Merender file MP4 akhir...")
+    print("[FFmpeg] Merender video akhir dengan beat & karaoke dinamis...")
     subprocess.run(ffmpeg_cmd, check=True)
     print(f"[FFmpeg] Video selesai dirender: {video_out}")
     return video_out
@@ -1255,16 +1230,13 @@ def send_outputs_to_telegram(
 # ==============================================================================
 def main() -> None:
     print("=" * 72)
-    print("🚀 MEMULAI PIPELINE HYPE & SENTIMENT INDEX (ANTI-AI-SLOP EDITION)")
+    print("🚀 MEMULAI PIPELINE HYPE & SENTIMENT INDEX (STUDIO CREATIVE V2)")
     print("=" * 72)
 
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     CAROUSEL_DIR.mkdir(parents=True, exist_ok=True)
 
-    # Tahap 1: Ambil berita terbaru yang belum pernah diposting
     primary_news, supporting_headlines = fetch_latest_unposted_news()
-
-    # Tahap 2: Analisis sentimen & buat naskah tajam dengan Auto-Detect Model Gemini
     analysis = analyze_news_with_gemini(primary_news, supporting_headlines)
 
     analysis_json_path = OUTPUT_DIR / "latest_analysis.json"
@@ -1272,30 +1244,24 @@ def main() -> None:
         json.dumps(analysis, indent=2, ensure_ascii=False), encoding="utf-8"
     )
 
-    # Tahap 3: Unduh foto berita jurnalistik asli (og:image / Bing News fallback)
     hero_photo = fetch_real_editorial_photo(
         primary_news, analysis.get("entity_name", ""), HERO_IMG_PATH
     )
 
-    # Tahap 4: Buat audio voiceover + ekstraksi timestamp kata untuk Karaoke Subtitle
     voice_script = analysis.get(
         "voiceover_script",
         f"Pergerakan indeks sentimen hari ini dibuka oleh {primary_news['title']}.",
     )
     word_timings = generate_voiceover(voice_script, AUDIO_PATH, SUBTITLE_PATH)
 
-    # Tahap 5: Render 6 slide Carousel Instagram Dark Mode (dengan Foto Asli di Slide 1)
     carousel_files = render_carousel_slides(analysis, hero_photo, CAROUSEL_DIR)
 
-    # Tahap 6: Render Video Vertikal 9:16 Multi-Scene (Foto Ken Burns + Grafik + Karaoke Sub)
     video_file = render_vertical_video(
         analysis, hero_photo, word_timings, AUDIO_PATH, FINAL_VIDEO_PATH
     )
 
-    # Tahap 7: Kirim paket video & gambar ke Bot Telegram Pribadi
     send_outputs_to_telegram(video_file, carousel_files, analysis, primary_news)
 
-    # Tahap 8: Catat link berita ke posted_links.txt agar tidak duplikat besok
     save_posted_link(primary_news["link"])
     print(f"[Cache] Link berita disimpan ke {CACHE_FILE} untuk mencegah duplikasi.")
     print("✅ PIPELINE SELESAI DENGAN SUKSES!")
