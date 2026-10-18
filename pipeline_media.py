@@ -3,30 +3,33 @@
 """
 METRIKA Media - Automated Multi-Program Editorial System
 ========================================================
-Platform media otomasi cerdas berbasis Jurnalisme Data & Komputasi Visual.
-Standar Editorial Kelas Agensi Desain & Media Investigasi Premium (@theeconomicinfluence, Bloomberg).
+Carousel Instagram 5 slide (1080x1350) dengan FOTO NYATA di setiap slide.
 
-Fokus Utama:
-- Carousel Instagram 5 Slide Padat & Penuh (1080x1350 px), ZERO BLANK VOID.
-- Copywriting Tajam, Provokatif, Emosional, dan Bebas Bahasa Birokrat Klise.
-- Foto Jurnalistik 100% Nyata & Terverifikasi (Bebas Bot-Detection, Bebas Gambar Acak).
-- Pustaka Visual Tematik Langsung (SPBU/BBM, Uang Rupiah, Emas Antam, Saham IDX, Mobil/Otomotif).
-- Palet Coklat Mewah (Luxury Espresso, Warm Cognac Leather, Warm Ivory Linen).
-- Tanpa rendering video (100% komputasi difokuskan pada keindahan carousel).
+Sistem foto:
+- Slide 1 (cover): foto asli dari portal berita sumber, diambil dari <meta property="og:image">
+  link berita RSS (Detik, Kompas, CNBC, dll). Link Google News otomatis di-resolve ke URL penerbit.
+- Slide 2-5: foto tematik dari TOPIC_IMAGE_REGISTRY (retail, staples, fuel, macro, gold, stocks,
+  automotive, general) dengan pencocokan kategori berbasis skor kata kunci.
+  Prioritas: pustaka lokal (photo_library/<kategori>/*.jpg) -> registry URL -> kategori general.
+
+Utilitas:
+  python pipeline_media.py --check-images     # uji semua URL di TOPIC_IMAGE_REGISTRY
 """
 
-import asyncio
+import argparse
+import base64
 import datetime
+import hashlib
+import html as htmllib
 import io
 import json
-import math
 import os
+import random
 import re
-import subprocess
 import sys
-import urllib.parse
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
+from urllib.parse import parse_qs, quote, urlencode, urljoin, urlparse
 
 try:
     import feedparser
@@ -34,21 +37,12 @@ except ImportError:
     feedparser = None
 
 import requests
+from PIL import Image, ImageOps
 
-try:
-    from bs4 import BeautifulSoup
-except ImportError:
-    BeautifulSoup = None
-
-from PIL import Image, ImageDraw, ImageFont
-
-# Import Modul Render Editorial METRIKA
-from metrika_render import (
-    render_carousel_slides,
-)
+from metrika_render import render_carousel_slides, strip_emoji, strip_emoji_deep
 
 # ==============================================================================
-# 1. KONFIGURASI GLOBAL & BENCHMARK RESMI
+# 1. KONFIGURASI GLOBAL
 # ==============================================================================
 MEDIA_NAME = os.environ.get("MEDIA_NAME", "METRIKA").strip()
 PROGRAM_OVERRIDE = os.environ.get("PROGRAM_OVERRIDE", "").strip().upper()
@@ -70,155 +64,216 @@ PREFERRED_GEMINI_MODELS = [
 CACHE_FILE = Path("posted_links.txt")
 OUTPUT_DIR = Path("output_media")
 CAROUSEL_DIR = OUTPUT_DIR / "carousel"
-AUDIO_PATH = OUTPUT_DIR / "voiceover.mp3"
-SUBTITLE_PATH = OUTPUT_DIR / "subtitles.json"
+PHOTO_LIBRARY_DIR = Path(os.environ.get("PHOTO_LIBRARY_DIR", "photo_library"))
 
-HERO_IMG_PATH = OUTPUT_DIR / "slide_01_hero.jpg"
-SLIDE2_IMG_PATH = OUTPUT_DIR / "slide_02_context.jpg"
-SLIDE3_IMG_PATH = OUTPUT_DIR / "slide_03_metric.jpg"
-SLIDE4_IMG_PATH = OUTPUT_DIR / "slide_04_strategy.jpg"
-SLIDE5_IMG_PATH = OUTPUT_DIR / "slide_05_verdict.jpg"
-VERDICT_IMG_PATH = SLIDE5_IMG_PATH
-
-# Regulasi & Benchmark Ekonomi Resmi Indonesia
-UMP_JAKARTA_2025 = 5_396_763     # Kepgub DKI Jakarta No. 1026/2024
-HARI_KERJA_SEBULAN = 22
-UMP_PER_HARI = UMP_JAKARTA_2025 / HARI_KERJA_SEBULAN   # ~Rp 245.307/hari
-UMP_PER_JAM = UMP_PER_HARI / 8                         # ~Rp 30.663/jam
-
-OJOL_NET_PER_TRIP = 13_000       # Kepmenhub No. KP 667/2022 (Zona II Jabodetabek)
-OJOL_NET_PER_HARI = 160_000      # Rata-rata 12-14 order harian
-OJOL_NET_PER_JAM = 16_500        # Jam kerja aktif di jalanan
-
-HARGA_BERAS_5KG = 74_500         # Badan Pangan Nasional (Bapanas) - Beras Medium
-HARGA_EMAS_ANTAM_GRAM = 1_490_000# PT Antam Tbk Logam Mulia
-SEWA_KOS_JAKARTA_MO = 1_850_000  # Survei kamar kos standar DKI Jakarta
+SLIDE_IMG_PATHS: Dict[str, Path] = {
+    "slide1": OUTPUT_DIR / "slide_01_hero.jpg",
+    "slide2": OUTPUT_DIR / "slide_02_context.jpg",
+    "slide3": OUTPUT_DIR / "slide_03_metric.jpg",
+    "slide4": OUTPUT_DIR / "slide_04_strategy.jpg",
+    "slide5": OUTPUT_DIR / "slide_05_verdict.jpg",
+}
 
 HTTP_HEADERS = {
     "User-Agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/124.0.0.0 Safari/537.36"
-    )
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+    ),
+    "Accept-Language": "id-ID,id;q=0.9,en;q=0.7",
 }
 
+MIN_COVER_WIDTH = 600      # og:image lebih kecil dari ini dianggap buram / logo
+MIN_REGISTRY_WIDTH = 800
+
+
 # ==============================================================================
-# PUSTAKA FOTO JURNALISTIK TERVERIFIKASI (100% NYATA & RELEVAN SESUAI TOPIK)
-# Menghindari bot-detection scraping yang memicu gambar acak (seperti game / translate).
+# 2. REGISTRY FOTO TEMATIK (SLIDE 2-5)
 # ==============================================================================
-TOPIC_IMAGE_REGISTRY = {
-    "fuel": [
-        "https://images.unsplash.com/photo-1545454675-3531b543be5d?auto=format&fit=crop&w=1200&q=80", # SPBU Nozzle & Fueling
-        "https://images.unsplash.com/photo-1506521781263-d8422e82f27a?auto=format&fit=crop&w=1200&q=80", # Antrean Mobil Jalan Raya
-        "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&w=1200&q=80", # Kilang Minyak Industri
-        "https://images.unsplash.com/photo-1584345604476-8ec5e12e42dd?auto=format&fit=crop&w=1200&q=80", # Indikator Bensin Mobil
-        "https://images.unsplash.com/photo-1558981403-c5f9899a28bc?auto=format&fit=crop&w=1200&q=80", # Lalu Lintas Sepeda Motor Jakarta
+# CATATAN: ID Unsplash di bawah adalah kurasi manual. Jalankan `--check-images` untuk
+# memverifikasi semuanya dari jaringanmu; URL yang mati otomatis dilewati dan digantikan
+# kandidat berikutnya. Untuk kualitas paling terjamin, taruh foto sendiri di
+# photo_library/<kategori>/ (prioritas tertinggi).
+def _u(photo_id: str) -> str:
+    return f"https://images.unsplash.com/{photo_id}?auto=format&fit=crop&w=1200&q=80"
+
+
+TOPIC_IMAGE_REGISTRY: Dict[str, List[str]] = {
+    # Ritel / konsumsi / minimarket: lorong supermarket, keranjang, kasir, rak diskon
+    "retail": [
+        _u("photo-1542838132-92c53300491e"),  # lorong supermarket
+        _u("photo-1578916171728-46686eac8d58"),  # rak supermarket
+        _u("photo-1604719312566-8912e9227c6a"),  # belanja kebutuhan
+        _u("photo-1534723452862-4c874018d66d"),  # rak barang
+        _u("photo-1556742049-0cfed4f6a45d"),  # pembayaran di kasir
+        _u("photo-1556740738-b6a63e27c4df"),  # transaksi kasir toko
+        _u("photo-1583258292688-d0213dc5a3a8"),  # keranjang belanja
+        _u("photo-1607082348824-0a96f2a4b9da"),  # promo / diskon
     ],
-    "currency": [
-        "https://images.unsplash.com/photo-1580519542036-c47de6196ba5?auto=format&fit=crop&w=1200&q=80", # Uang Kertas & Finansial
-        "https://images.unsplash.com/photo-1526304640581-d334cdbbf45e?auto=format&fit=crop&w=1200&q=80", # Pertukaran Valuta Asing
-        "https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?auto=format&fit=crop&w=1200&q=80", # Grafik Candlestick Forex
-        "https://images.unsplash.com/photo-1578632767115-351597cf2477?auto=format&fit=crop&w=1200&q=80", # Gedung Pusat Bisnis Sudirman
-        "https://images.unsplash.com/photo-1590283603385-17ffb3a7f29f?auto=format&fit=crop&w=1200&q=80", # Trader Analisis Data Kurs
+    # Sembako / pangan: beras, minyak goreng, pasar tradisional
+    "staples": [
+        _u("photo-1586201375761-83865001e31c"),  # beras
+        _u("photo-1536304993881-ff6e9eefa2a6"),  # padi / beras
+        _u("photo-1474979266404-7eaacbcd87c5"),  # minyak goreng
+        _u("photo-1488459716781-31db52582fe9"),  # pasar tradisional
+        _u("photo-1610348725531-843dff563e2c"),  # pasar sayur
+        _u("photo-1542838132-92c53300491e"),  # bahan pangan di toko
+    ],
+    # Energi / SPBU: SPBU malam, nozzle, antrean kendaraan
+    "fuel": [
+        _u("photo-1545454675-3531b543be5d"),  # SPBU & nozzle
+        _u("photo-1506521781263-d8422e82f27a"),  # antrean mobil
+        _u("photo-1518709268805-4e9042af9f23"),  # kilang minyak
+        _u("photo-1584345604476-8ec5e12e42dd"),  # indikator bensin
+        _u("photo-1558981403-c5f9899a28bc"),  # lalu lintas motor
+    ],
+    # Makro / rupiah: uang fisik, dompet, transaksi perbankan
+    "macro": [
+        _u("photo-1580519542036-c47de6196ba5"),  # uang kertas
+        _u("photo-1526304640581-d334cdbbf45e"),  # valuta asing
+        _u("photo-1563013544-824ae1b704d3"),  # transaksi kartu / bank
+        _u("photo-1554224155-6726b3ff858f"),  # kalkulator & keuangan
+        _u("photo-1578632767115-351597cf2477"),  # pusat bisnis
+        _u("photo-1611974789855-9c2a0a7236a3"),  # grafik ekonomi
     ],
     "gold": [
-        "https://images.unsplash.com/photo-1610375461246-83df859d849d?auto=format&fit=crop&w=1200&q=80", # Emas Batangan Asli
-        "https://images.unsplash.com/photo-1509718443690-d8e2fb3474b7?auto=format&fit=crop&w=1200&q=80", # Koin Emas & Investasi
-        "https://images.unsplash.com/photo-1642543492481-44e81e3914a7?auto=format&fit=crop&w=1200&q=80", # Grafik Pasar Komoditas
-        "https://images.unsplash.com/photo-1565372195458-9de0b320ef04?auto=format&fit=crop&w=1200&q=80", # Brankas Bank Khazanah Emas
-        "https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?auto=format&fit=crop&w=1200&q=80", # Keputusan Finansial Investor
+        _u("photo-1610375461246-83df859d849d"),  # emas batangan
+        _u("photo-1509718443690-d8e2fb3474b7"),  # koin emas
+        _u("photo-1642543492481-44e81e3914a7"),  # grafik komoditas
+        _u("photo-1565372195458-9de0b320ef04"),  # brankas
+        _u("photo-1454165804606-c3d57bc86b40"),  # keputusan investor
     ],
     "stocks": [
-        "https://images.unsplash.com/photo-1590283603385-17ffb3a7f29f?auto=format&fit=crop&w=1200&q=80", # Layar Bursa Saham Trading
-        "https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?auto=format&fit=crop&w=1200&q=80", # Candlestick Chart Saham
-        "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=1200&q=80", # Gedung Pencakar Langit Bursa
-        "https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&w=1200&q=80", # Dashboard Data Analitik
-        "https://images.unsplash.com/photo-1517048676732-d65bc937f952?auto=format&fit=crop&w=1200&q=80", # Diskusi Dewan Investor
+        _u("photo-1590283603385-17ffb3a7f29f"),  # layar bursa
+        _u("photo-1611974789855-9c2a0a7236a3"),  # candlestick
+        _u("photo-1486406146926-c627a92ad1ab"),  # gedung bursa
+        _u("photo-1551288049-bebda4e38f71"),  # dashboard analitik
+        _u("photo-1517048676732-d65bc937f952"),  # diskusi investor
     ],
     "automotive": [
-        "https://images.unsplash.com/photo-1533473359331-0135ef1b58bf?auto=format&fit=crop&w=1200&q=80", # Mobil SUV Mewah di Jalan
-        "https://images.unsplash.com/photo-1545454675-3531b543be5d?auto=format&fit=crop&w=1200&q=80", # Pengisian Bahan Bakar Mobil
-        "https://images.unsplash.com/photo-1506521781263-d8422e82f27a?auto=format&fit=crop&w=1200&q=80", # Antrean Kendaraan di Jalan
-        "https://images.unsplash.com/photo-1584345604476-8ec5e12e42dd?auto=format&fit=crop&w=1200&q=80", # Dashboard Mobil & Konsumsi
-        "https://images.unsplash.com/photo-1492144534655-ae79c964c9d7?auto=format&fit=crop&w=1200&q=80", # Kendaraan Lalu Lintas Kota
+        _u("photo-1533473359331-0135ef1b58bf"),  # SUV di jalan
+        _u("photo-1545454675-3531b543be5d"),  # isi bahan bakar
+        _u("photo-1506521781263-d8422e82f27a"),  # antrean kendaraan
+        _u("photo-1584345604476-8ec5e12e42dd"),  # dashboard mobil
+        _u("photo-1492144534655-ae79c964c9d7"),  # lalu lintas kota
     ],
     "general": [
-        "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=1200&q=80", # Gedung Finansial & Bisnis
-        "https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?auto=format&fit=crop&w=1200&q=80", # Grafik Data Ekonomi
-        "https://images.unsplash.com/photo-1580519542036-c47de6196ba5?auto=format&fit=crop&w=1200&q=80", # Arus Uang & Perbankan
-        "https://images.unsplash.com/photo-1578632767115-351597cf2477?auto=format&fit=crop&w=1200&q=80", # Pusat Bisnis Metropolitan
-        "https://images.unsplash.com/photo-1590283603385-17ffb3a7f29f?auto=format&fit=crop&w=1200&q=80", # Analisis Riset & Keputusan
+        _u("photo-1486406146926-c627a92ad1ab"),  # gedung bisnis
+        _u("photo-1611974789855-9c2a0a7236a3"),  # grafik data
+        _u("photo-1580519542036-c47de6196ba5"),  # uang & perbankan
+        _u("photo-1578632767115-351597cf2477"),  # pusat bisnis metropolitan
+        _u("photo-1590283603385-17ffb3a7f29f"),  # analisis & keputusan
     ],
 }
+CATEGORY_ALIASES = {"currency": "macro", "rupiah": "macro", "retail_consumer": "retail", "food": "staples"}
+
+# Kata kunci berbobot. Merek ritel diberi bobot tertinggi agar "saham Alfamart" -> RETAIL, bukan STOCKS.
+TOPIC_KEYWORDS: Dict[str, List[Tuple[str, int]]] = {
+    "retail": [
+        ("alfamart", 6), ("indomaret", 6), ("alfamidi", 6), ("hypermart", 6), ("transmart", 6),
+        ("super indo", 6), ("lotte mart", 6), ("giant", 3), ("ranch market", 5), ("ramayana", 4),
+        ("minimarket", 4), ("supermarket", 4), ("ritel", 4), ("retail", 4), ("diskon", 4),
+        ("belanja", 3), ("warung", 3), ("promo", 2), ("kasir", 2), ("gerai", 3), ("toko", 2),
+        ("e commerce", 2), ("konsumsi rumah tangga", 3), ("daya beli", 1),
+    ],
+    "staples": [
+        ("sembako", 5), ("beras", 5), ("minyak goreng", 5), ("minyakita", 5), ("kebutuhan pokok", 4),
+        ("harga pangan", 4), ("pangan", 3), ("pasar tradisional", 4), ("bapanas", 4), ("bulog", 4),
+        ("cabai", 4), ("bawang", 4), ("telur", 3), ("gula", 2), ("tepung", 2), ("gandum", 3),
+    ],
+    "fuel": [
+        ("pertalite", 5), ("pertamax", 5), ("bbm", 5), ("spbu", 5), ("bensin", 5), ("solar", 3),
+        ("subsidi energi", 4), ("bahan bakar", 4), ("pertamina", 2), ("lpg", 4), ("gas melon", 4),
+        ("harga minyak", 3), ("minyak mentah", 3),
+    ],
+    "gold": [("emas", 5), ("antam", 5), ("logam mulia", 5), ("gold", 3)],
+    "stocks": [
+        ("ihsg", 5), ("saham", 3), ("emiten", 3), ("bursa efek", 4), ("bursa", 2), ("idx", 2),
+        ("msci", 4), ("ipo", 3), ("dividen", 3), ("bei", 2), ("investor asing", 2),
+    ],
+    "macro": [
+        ("rupiah", 4), ("dolar", 4), ("kurs", 4), ("valas", 4), ("devisa", 4), ("inflasi", 4),
+        ("suku bunga", 4), ("bi rate", 4), ("bank indonesia", 3), ("apbn", 3), ("pajak", 3),
+        ("ump", 3), ("gaji", 2), ("phk", 3), ("pertumbuhan ekonomi", 3), ("utang", 2), ("resesi", 3),
+    ],
+    "automotive": [
+        ("otomotif", 5), ("mobil listrik", 5), ("mobil", 3), ("motor", 2), ("toyota", 4), ("honda", 4),
+        ("kendaraan listrik", 5), ("kendaraan", 2),
+    ],
+}
+CATEGORY_PRIORITY = ["retail", "staples", "fuel", "gold", "stocks", "macro", "automotive"]
+
+
+def detect_topic_category(text: str, ai_hint: str = "") -> str:
+    """Pilih kategori foto berdasarkan skor kata kunci; petunjuk AI dipakai hanya jika skor nol."""
+    t = " " + re.sub(r"\s+", " ", re.sub(r"[^a-z0-9 ]+", " ", text.lower())) + " "
+    scores: Dict[str, int] = {}
+    for cat, kws in TOPIC_KEYWORDS.items():
+        s = 0
+        for kw, w in kws:
+            hits = len(re.findall(r"(?<![a-z0-9])" + re.escape(kw) + r"(?![a-z0-9])", t))
+            s += min(hits, 3) * w
+        scores[cat] = s
+    best = max(scores.values()) if scores else 0
+    if best > 0:
+        for cat in CATEGORY_PRIORITY:
+            if scores.get(cat) == best:
+                return cat
+    hint = CATEGORY_ALIASES.get((ai_hint or "").strip().lower(), (ai_hint or "").strip().lower())
+    return hint if hint in TOPIC_IMAGE_REGISTRY else "general"
 
 
 # ==============================================================================
-# 2. SISTEM PENJADWALAN PROGRAM MINGGUAN
+# 3. PENJADWALAN PROGRAM
 # ==============================================================================
+GN = "https://news.google.com/rss"
+# Feed langsung penerbit (link langsung, og:image andal). Best-effort: feed yang gagal dilewati.
+DIRECT_FEEDS = [
+    "https://www.cnbcindonesia.com/market/rss",
+    "https://www.cnbcindonesia.com/news/rss",
+    "https://rss.detik.com/index.php/finance",
+    "https://www.antaranews.com/rss/ekonomi.xml",
+]
+
+
 def get_daily_program_config() -> Dict[str, Any]:
     if PROGRAM_OVERRIDE in ("INDEKS_KERINGAT", "RADAR_SENTIMEN", "ANGKA_BICARA"):
         p_id = PROGRAM_OVERRIDE
     else:
         weekday = datetime.datetime.now().weekday()
-        if weekday in (0, 3):
-            p_id = "INDEKS_KERINGAT"
-        elif weekday in (1, 4):
-            p_id = "RADAR_SENTIMEN"
-        else:
-            p_id = "ANGKA_BICARA"
+        p_id = "INDEKS_KERINGAT" if weekday in (0, 3) else "RADAR_SENTIMEN" if weekday in (1, 4) else "ANGKA_BICARA"
 
     if p_id == "INDEKS_KERINGAT":
         return {
-            "id": "INDEKS_KERINGAT",
-            "name": "INDEKS KERINGAT",
-            "subtitle": "JURNAL DAYA BELI & JAM KERJA",
+            "id": p_id, "name": "INDEKS KERINGAT", "subtitle": "JURNAL DAYA BELI & JAM KERJA",
             "feeds": [
-                "https://news.google.com/rss/headlines/section/topic/TECHNOLOGY?hl=id&gl=ID&ceid=ID:id",
-                "https://news.google.com/rss/headlines/section/topic/BUSINESS?hl=id&gl=ID&ceid=ID:id",
-                "https://news.google.com/rss/search?q=pertalite+OR+harga+bbm+OR+subsidi+energi+OR+harga+mobil+indonesia&hl=id&gl=ID&ceid=ID:id",
-            ],
-            "sources": [
-                "PT Pertamina (Persero)",
-                "Kementerian ESDM RI",
-                "Badan Pengatur Hilir Migas (BPH Migas)",
-                "Kepgub DKI No. 1026/2024 (UMP Rp 5.396.763)",
-            ],
+                f"{GN}/headlines/section/topic/BUSINESS?hl=id&gl=ID&ceid=ID:id",
+                f"{GN}/search?q=diskon+OR+harga+sembako+OR+alfamart+OR+indomaret+OR+pertalite+OR+harga+mobil&hl=id&gl=ID&ceid=ID:id",
+            ] + DIRECT_FEEDS,
+            "sources": ["Badan Pusat Statistik (BPS)", "Badan Pangan Nasional (Bapanas)", "Kementerian ESDM RI",
+                        "Kepgub DKI No. 1026/2024 (UMP Rp 5.396.763)"],
         }
-    elif p_id == "RADAR_SENTIMEN":
+    if p_id == "RADAR_SENTIMEN":
         return {
-            "id": "RADAR_SENTIMEN",
-            "name": "RADAR SENTIMEN",
-            "subtitle": "PETA POLARISASI OPINI PUBLIK",
+            "id": p_id, "name": "RADAR SENTIMEN", "subtitle": "PETA POLARISASI OPINI PUBLIK",
             "feeds": [
-                "https://news.google.com/rss/headlines/section/topic/NATION?hl=id&gl=ID&ceid=ID:id",
-                "https://news.google.com/rss/headlines/section/topic/ENTERTAINMENT?hl=id&gl=ID&ceid=ID:id",
-                "https://news.google.com/rss/search?q=viral+OR+perdebatan+OR+subsidi+bbm+OR+pro+kontra+indonesia&hl=id&gl=ID&ceid=ID:id",
-            ],
-            "sources": [
-                "Pantauan Percakapan Media Sosial & Forum Publik",
-                "Portal Berita Terverifikasi Dewan Pers",
-            ],
+                f"{GN}/headlines/section/topic/NATION?hl=id&gl=ID&ceid=ID:id",
+                f"{GN}/search?q=viral+OR+perdebatan+OR+pro+kontra+OR+kebijakan+indonesia&hl=id&gl=ID&ceid=ID:id",
+            ] + DIRECT_FEEDS,
+            "sources": ["Pantauan Percakapan Media Sosial & Forum Publik", "Portal Berita Terverifikasi Dewan Pers"],
         }
-    else:
-        return {
-            "id": "ANGKA_BICARA",
-            "name": "ANGKA BICARA",
-            "subtitle": "DATA STORYTELLING & GAYA HIDUP",
-            "feeds": [
-                "https://news.google.com/rss/headlines/section/topic/BUSINESS?hl=id&gl=ID&ceid=ID:id",
-                "https://news.google.com/rss/search?q=pertalite+OR+subsidi+energi+OR+rupiah+tembus+OR+harga+emas+indonesia&hl=id&gl=ID&ceid=ID:id",
-            ],
-            "sources": [
-                "PT Pertamina (Persero)",
-                "Kementerian ESDM RI",
-                "Bank Indonesia (BI)",
-                "Bursa Efek Indonesia (IDX)",
-            ],
-        }
+    return {
+        "id": "ANGKA_BICARA", "name": "ANGKA BICARA", "subtitle": "DATA STORYTELLING & GAYA HIDUP",
+        "feeds": [
+            f"{GN}/headlines/section/topic/BUSINESS?hl=id&gl=ID&ceid=ID:id",
+            f"{GN}/search?q=rupiah+OR+harga+emas+OR+subsidi+energi+OR+inflasi+indonesia&hl=id&gl=ID&ceid=ID:id",
+        ] + DIRECT_FEEDS,
+        "sources": ["Bank Indonesia (BI)", "Badan Pusat Statistik (BPS)", "Kementerian Keuangan RI",
+                    "Bursa Efek Indonesia (IDX)"],
+    }
 
 
 # ==============================================================================
-# 3. MODUL INGESTION BERITA & FOTO TERVALIDASI
+# 4. INGESTION BERITA + FOTO COVER DARI og:image
 # ==============================================================================
 def format_rupiah(amount: int) -> str:
     return f"Rp {amount:,.0f}".replace(",", ".")
@@ -228,8 +283,7 @@ def load_posted_links() -> set:
     if not CACHE_FILE.exists():
         CACHE_FILE.write_text("", encoding="utf-8")
         return set()
-    lines = CACHE_FILE.read_text(encoding="utf-8").splitlines()
-    return {line.strip() for line in lines if line.strip()}
+    return {ln.strip() for ln in CACHE_FILE.read_text(encoding="utf-8").splitlines() if ln.strip()}
 
 
 def save_posted_link(link: str) -> None:
@@ -238,120 +292,285 @@ def save_posted_link(link: str) -> None:
 
 
 def clean_html(raw_html: str) -> str:
-    clean_regex = re.compile("<.*?>")
-    text = re.sub(clean_regex, " ", raw_html or "")
-    return re.sub(r"\s+", " ", text).strip()
+    text = re.sub(r"<.*?>", " ", raw_html or "")
+    return re.sub(r"\s+", " ", htmllib.unescape(text)).strip()
 
 
-def fetch_latest_program_news(prog_cfg: Dict[str, Any]) -> Tuple[Dict[str, str], List[str]]:
+def fetch_candidates(prog_cfg: Dict[str, Any]) -> List[Dict[str, str]]:
     posted = load_posted_links()
-    candidates: List[Dict[str, str]] = []
-
-    if feedparser is not None:
+    seen_titles: set = set()
+    out: List[Dict[str, str]] = []
+    if feedparser is None:
+        print("[RSS] feedparser belum terpasang (pip install feedparser).")
+    else:
         for rss_url in prog_cfg["feeds"]:
             try:
-                feed = feedparser.parse(rss_url)
+                feed = feedparser.parse(rss_url, request_headers=HTTP_HEADERS)
                 for entry in feed.entries[:15]:
-                    link = entry.get("link", "").strip()
-                    title = entry.get("title", "").strip()
-                    summary = clean_html(entry.get("summary", ""))
-                    published = entry.get("published", "")
-                    if link and title and link not in posted:
-                        candidates.append(
-                            {
-                                "title": title,
-                                "link": link,
-                                "summary": summary,
-                                "published": published,
-                            }
-                        )
-            except Exception:
-                continue
-
-    if not candidates:
-        candidates.append(
-            {
-                "title": "Antrean Panjang Pembelian Pertalite di SPBU dan Wacana Pengetatan QR Code Kendaraan",
-                "link": f"https://metrika.id/bbm/{datetime.date.today()}",
-                "summary": "Pembatasan konsumsi BBM bersubsidi memicu kepanikan warga dan antrean mengular kendaraan di berbagai stasiun pengisian bahan bakar.",
-                "published": str(datetime.date.today()),
-            }
-        )
-
-    primary_item = candidates[0]
-    supporting = [item["title"] for item in candidates[1:6]]
-    print(f"[RSS] Topik Terpilih ({prog_cfg['name']}): {primary_item['title']}")
-    return primary_item, supporting
+                    link = (entry.get("link") or "").strip()
+                    title = (entry.get("title") or "").strip()
+                    key = re.sub(r"\W+", "", title.lower())[:60]
+                    if not link or not title or link in posted or key in seen_titles:
+                        continue
+                    seen_titles.add(key)
+                    out.append({"title": title, "link": link,
+                                "summary": clean_html(entry.get("summary", "")),
+                                "published": entry.get("published", "")})
+            except Exception as err:
+                print(f"[RSS] Feed dilewati ({rss_url[:60]}...): {err}")
+    return out
 
 
-def detect_topic_category(text: str) -> str:
-    """Mendeteksi kategori topik untuk memilih set foto jurnalistik yang 100% tepat."""
-    t = text.lower()
-    if any(k in t for k in ["bbm", "pertalite", "pertamax", "spbu", "bensin", "solar", "minyak", "subsidi energi", "pajero"]):
-        return "fuel"
-    if any(k in t for k in ["emas", "antam", "logam mulia", "gold"]):
-        return "gold"
-    if any(k in t for k in ["rupiah", "dolar", "kurs", "uang", "valas", "devisa", "inflasi"]):
-        return "currency"
-    if any(k in t for k in ["saham", "ihsg", "bursa", "idx", "bei", "msci"]):
-        return "stocks"
-    if any(k in t for k in ["mobil", "motor", "otomotif", "toyota", "honda", "kendaraan"]):
-        return "automotive"
-    return "general"
+# ---------- Resolver link Google News -> URL penerbit asli ----------
+def resolve_google_news_url(url: str) -> str:
+    """Best-effort: ubah link news.google.com/rss/articles/... menjadi URL artikel penerbit."""
+    if "news.google.com" not in url:
+        return url
+    m = re.search(r"/articles/([^?/#]+)", url)
+    if not m:
+        return url
+    art_id = m.group(1)
+
+    # (a) Format lama: ID berupa base64 yang memuat URL asli
+    try:
+        raw = base64.urlsafe_b64decode(art_id + "=" * (-len(art_id) % 4))
+        mm = re.search(rb"https?://[^\x00-\x20\"'<>\x7f-\xff]+", raw)
+        if mm and b"news.google.com" not in mm.group(0):
+            return mm.group(0).decode("utf-8", "ignore")
+    except Exception:
+        pass
+
+    # (b) Redirect biasa
+    try:
+        r = requests.get(url, headers=HTTP_HEADERS, timeout=12, allow_redirects=True)
+        if "news.google.com" not in urlparse(r.url).netloc:
+            return r.url
+        page = r.text
+    except Exception:
+        page = ""
+
+    # (c) Format baru: tukar signature via batchexecute
+    try:
+        if not page:
+            page = requests.get(f"https://news.google.com/rss/articles/{art_id}",
+                                headers=HTTP_HEADERS, timeout=12).text
+        sg = re.search(r'data-n-a-sg="([^"]+)"', page)
+        ts = re.search(r'data-n-a-ts="([^"]+)"', page)
+        if sg and ts:
+            inner = json.dumps([
+                "garturlreq",
+                [["X", "X", ["X", "X"], None, None, 1, 1, "US:en", None, 1, None, None, None, None, None, 0, 1],
+                 "X", "X", 1, [1, 1, 1], 1, 1, None, 0, 0, None, 0],
+                art_id, int(ts.group(1)), sg.group(1),
+            ])
+            req = json.dumps([[["Fbv4je", inner]]])
+            resp = requests.post(
+                "https://news.google.com/_/DotsSplashUi/data/batchexecute",
+                headers={**HTTP_HEADERS, "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8"},
+                data="f.req=" + quote(req), timeout=15,
+            )
+            parsed = json.loads(resp.text.split("\n\n")[1])[:-2]
+            real = json.loads(parsed[0][2])[1]
+            if isinstance(real, str) and real.startswith("http"):
+                return real
+    except Exception as err:
+        print(f"[Cover] Resolver Google News gagal: {err}")
+    return url
 
 
-def download_editorial_images_for_carousel(
-    news_item: Dict[str, str], analysis: Dict[str, Any]
-) -> Dict[str, Path]:
-    """
-    Mengunduh 5 foto jurnalistik resolusi tinggi yang 100% cocok dengan topik.
-    Menggunakan Pustaka Visual Terverifikasi (Bebas Bot-Detection Azure/Bing).
-    """
-    category = detect_topic_category(news_item["title"] + " " + analysis.get("subject_title", ""))
-    urls = TOPIC_IMAGE_REGISTRY.get(category, TOPIC_IMAGE_REGISTRY["general"])
-    
-    print(f"[Photo Engine] Kategori visual terpilih: {category.upper()} (5 Foto Terverifikasi)")
+# ---------- Ekstraksi og:image ----------
+META_RE = re.compile(r"<meta\s+[^>]*>", re.I)
+ATTR_RE = re.compile(r'([\w:-]+)\s*=\s*(?:"([^"]*)"|\'([^\']*)\')')
+OG_KEYS = ("og:image:secure_url", "og:image", "og:image:url", "twitter:image", "twitter:image:src")
+BAD_IMG_HINTS = ("logo", "favicon", "placeholder", "no-image", "noimage", "avatar", "default-image",
+                 "googleusercontent", "gstatic", "news.google", "sprite")
 
-    save_map = {
-        "slide1": HERO_IMG_PATH,
-        "slide2": SLIDE2_IMG_PATH,
-        "slide3": SLIDE3_IMG_PATH,
-        "slide4": SLIDE4_IMG_PATH,
-        "slide5": SLIDE5_IMG_PATH,
-    }
 
-    result: Dict[str, Path] = {}
-    for i, (key, path) in enumerate(save_map.items()):
-        url = urls[i % len(urls)]
-        try:
-            r = requests.get(url, headers=HTTP_HEADERS, timeout=12)
-            if r.status_code == 200 and len(r.content) > 10_000:
-                pil_img = Image.open(io.BytesIO(r.content)).convert("RGB")
-                pil_img.save(path, format="JPEG", quality=92)
-                result[key] = path
-                print(f"[Photo Engine] Slide {i+1} tersimpan ({category}): {path.name}")
-                continue
-        except Exception as e:
-            print(f"[Photo Engine] Gagal download url: {e}")
+def extract_og_images(page_html: str, base_url: str) -> List[str]:
+    found: Dict[str, str] = {}
+    for tag in META_RE.findall(page_html[:400000]):
+        attrs: Dict[str, str] = {}
+        for m in ATTR_RE.finditer(tag):
+            attrs[m.group(1).lower()] = htmllib.unescape(m.group(2) if m.group(2) is not None else m.group(3))
+        key = (attrs.get("property") or attrs.get("name") or "").lower()
+        val = (attrs.get("content") or "").strip()
+        if key in OG_KEYS and val and key not in found:
+            found[key] = val
+    return [urljoin(base_url, found[k]) for k in OG_KEYS if k in found]
 
-        # Fallback kanvas terkurasi jika koneksi timeout
-        im = Image.new("RGB", (1200, 800), (35, 23, 16))
+
+def upgrade_image_url(u: str) -> str:
+    """Naikkan parameter resize (w=650 -> w=1200) bila ada, agar cover tajam."""
+    try:
+        p = urlparse(u)
+        q = parse_qs(p.query)
+        if "w" in q and q["w"][0].isdigit() and int(q["w"][0]) < 1200:
+            q["w"] = ["1200"]
+            q.pop("h", None)
+            return p._replace(query=urlencode(q, doseq=True)).geturl()
+    except Exception:
+        pass
+    return u
+
+
+def download_image(url: str, path: Path, min_width: int = 0, referer: str = "") -> bool:
+    """Unduh -> validasi -> simpan JPEG. True bila lolos."""
+    try:
+        headers = dict(HTTP_HEADERS)
+        if referer:
+            headers["Referer"] = referer
+        r = requests.get(url, headers=headers, timeout=15)
+        if r.status_code != 200 or len(r.content) < 10_000:
+            return False
+        im = ImageOps.exif_transpose(Image.open(io.BytesIO(r.content))).convert("RGB")
+        if im.width < min_width or im.height < min_width * 0.45:
+            return False
+        path.parent.mkdir(parents=True, exist_ok=True)
         im.save(path, format="JPEG", quality=92)
-        result[key] = path
+        return True
+    except Exception:
+        return False
 
-    return result
+
+def fetch_cover_from_article(article_url: str, dest: Path) -> Optional[str]:
+    """Ambil og:image dari halaman artikel; kembalikan nama domain penerbit bila sukses."""
+    try:
+        r = requests.get(article_url, headers=HTTP_HEADERS, timeout=15, allow_redirects=True)
+        final = r.url
+        host = urlparse(final).netloc.lower().replace("www.", "")
+        if r.status_code != 200 or "news.google.com" in host:
+            return None
+        for img_url in extract_og_images(r.text, final):
+            if any(h in img_url.lower() for h in BAD_IMG_HINTS):
+                continue
+            for cand in dict.fromkeys([upgrade_image_url(img_url), img_url]):
+                if download_image(cand, dest, MIN_COVER_WIDTH, referer=final):
+                    return host
+    except Exception as err:
+        print(f"[Cover] Gagal ambil og:image: {err}")
+    return None
+
+
+def select_news_with_cover(candidates: List[Dict[str, str]], max_try: int = 6) -> Tuple[Dict[str, str], List[str]]:
+    """Pilih berita pertama yang og:image-nya valid. Jika tak ada, pakai berita pertama (foto dari registry)."""
+    if not candidates:
+        candidates = [{
+            "title": "Antrean Panjang di Gerai Ritel dan SPBU Saat Harga Kebutuhan Pokok Naik",
+            "link": f"https://metrika.id/fallback/{datetime.date.today()}",
+            "summary": "Kenaikan harga kebutuhan harian memicu lonjakan belanja dan antrean di berbagai gerai.",
+            "published": str(datetime.date.today()),
+        }]
+    chosen: Optional[Dict[str, str]] = None
+    for item in candidates[:max_try]:
+        real = resolve_google_news_url(item["link"])
+        domain = fetch_cover_from_article(real, SLIDE_IMG_PATHS["slide1"])
+        if domain:
+            item["cover_credit"] = domain
+            item["real_link"] = real
+            chosen = item
+            print(f"[Cover] og:image berhasil dari {domain}: {item['title'][:70]}")
+            break
+    if chosen is None:
+        chosen = candidates[0]
+        chosen["cover_credit"] = ""
+        print("[Cover] og:image tidak tersedia; cover memakai foto tematik registry.")
+    supporting = [c["title"] for c in candidates if c is not chosen][:5]
+    print(f"[RSS] Topik terpilih: {chosen['title']}")
+    return chosen, supporting
 
 
 # ==============================================================================
-# 4. OTAK AI: COPYWRITING INVESTIGASI TAJAM & BERKELAS AGENSI
+# 5. MESIN FOTO TEMATIK (SLIDE 2-5, ATAU 1-5 JIKA og:image GAGAL)
+# ==============================================================================
+def local_library_files(category: str) -> List[Path]:
+    d = PHOTO_LIBRARY_DIR / category
+    if not d.is_dir():
+        return []
+    return sorted(p for p in d.iterdir() if p.suffix.lower() in (".jpg", ".jpeg", ".png", ".webp"))
+
+
+def make_placeholder(path: Path) -> None:
+    """Cadangan terakhir: gradien coklat (hanya jika SEMUA sumber foto gagal)."""
+    im = Image.new("RGB", (1200, 800))
+    px = im.load()
+    for y in range(800):
+        for x in range(1200):
+            k = (x / 1200 * 0.4 + y / 800 * 0.6)
+            px[x, y] = (int(43 + 30 * k), int(26 + 22 * k), int(18 + 14 * k))
+    im.save(path, format="JPEG", quality=90)
+
+
+def fill_photos(category: str, seed: int, targets: List[Path]) -> None:
+    """Isi setiap path target dengan foto unik: pustaka lokal -> registry kategori -> general."""
+    rng = random.Random(seed)
+    local = local_library_files(category)
+    rng.shuffle(local)
+    urls = list(TOPIC_IMAGE_REGISTRY.get(category, []))
+    rng.shuffle(urls)
+    extra = [u for u in TOPIC_IMAGE_REGISTRY["general"] if u not in urls]
+    rng.shuffle(extra)
+    pool: List[Any] = local + urls + extra
+
+    idx = 0
+    for target in targets:
+        ok = False
+        while idx < len(pool) and not ok:
+            src = pool[idx]
+            idx += 1
+            if isinstance(src, Path):
+                try:
+                    im = ImageOps.exif_transpose(Image.open(src)).convert("RGB")
+                    im.save(target, format="JPEG", quality=92)
+                    ok = True
+                except Exception:
+                    ok = False
+            else:
+                ok = download_image(src, target, MIN_REGISTRY_WIDTH)
+            if ok:
+                print(f"[Photo Engine] {target.name} <- {src if isinstance(src, Path) else src[:70]}")
+        if not ok:
+            print(f"[Photo Engine] PERINGATAN: semua sumber gagal untuk {target.name}; memakai placeholder.")
+            make_placeholder(target)
+
+
+def prepare_images(news_item: Dict[str, str], analysis: Dict[str, Any]) -> Tuple[Dict[str, Path], str]:
+    blob = " ".join([
+        news_item["title"], news_item["title"], analysis.get("subject_title", ""),
+        analysis.get("hook", ""), news_item.get("summary", ""),
+    ])
+    category = detect_topic_category(blob, analysis.get("image_category", ""))
+    print(f"[Photo Engine] Kategori visual: {category.upper()}")
+    seed = int(hashlib.md5(news_item["title"].encode("utf-8")).hexdigest()[:8], 16)
+
+    targets: List[Path] = []
+    if not SLIDE_IMG_PATHS["slide1"].exists() or not news_item.get("cover_credit"):
+        targets.append(SLIDE_IMG_PATHS["slide1"])
+    targets += [SLIDE_IMG_PATHS[k] for k in ("slide2", "slide3", "slide4", "slide5")]
+    fill_photos(category, seed, targets)
+    return dict(SLIDE_IMG_PATHS), category
+
+
+def check_registry_images() -> None:
+    """Uji seluruh URL registry: python pipeline_media.py --check-images"""
+    tmp = OUTPUT_DIR / "_check.jpg"
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    bad = 0
+    for cat, urls in TOPIC_IMAGE_REGISTRY.items():
+        for u in urls:
+            ok = download_image(u, tmp, MIN_REGISTRY_WIDTH)
+            bad += 0 if ok else 1
+            print(f"[{'OK  ' if ok else 'FAIL'}] {cat:<10} {u[:90]}")
+    tmp.unlink(missing_ok=True)
+    print(f"\nSelesai. {bad} URL gagal. Ganti URL yang FAIL atau isi photo_library/<kategori>/.")
+
+
+# ==============================================================================
+# 6. OTAK AI: COPYWRITING INVESTIGASI
 # ==============================================================================
 def get_available_gemini_models() -> List[str]:
     if GEMINI_MODEL_OVERRIDE:
-        clean_override = GEMINI_MODEL_OVERRIDE.replace("models/", "")
-        return [clean_override] + [
-            m for m in PREFERRED_GEMINI_MODELS if m != clean_override
-        ]
-
+        o = GEMINI_MODEL_OVERRIDE.replace("models/", "")
+        return [o] + [m for m in PREFERRED_GEMINI_MODELS if m != o]
     list_url = f"https://generativelanguage.googleapis.com/v1beta/models?key={GEMINI_API_KEY}"
     discovered: List[str] = []
     try:
@@ -363,297 +582,263 @@ def get_available_gemini_models() -> List[str]:
                 discovered.append(name)
     except Exception:
         return list(PREFERRED_GEMINI_MODELS)
-
     ordered = [m for m in PREFERRED_GEMINI_MODELS if m in discovered]
-    for m in discovered:
-        if m not in ordered:
-            ordered.append(m)
+    ordered += [m for m in discovered if m not in ordered]
     return ordered or list(PREFERRED_GEMINI_MODELS)
 
 
-def analyze_with_gemini(
-    news_item: Dict[str, str], supporting_headlines: List[str], prog_cfg: Dict[str, Any]
-) -> Dict[str, Any]:
-    if not GEMINI_API_KEY:
-        raise EnvironmentError("GEMINI_API_KEY belum terpasang di GitHub Secrets!")
+def build_instructions() -> str:
+    return f"""
+Kamu adalah Pemimpin Redaksi dan Direktur Kreatif media riset data investigasi "{MEDIA_NAME}" (setara @theeconomicinfluence, Bloomberg QuickTake, Visual Capitalist).
+Misi: ubah berita terpilih menjadi CAROUSEL 5 SLIDE dengan copywriting tajam kelas dunia, TEPAT sesuai topik berita (jangan menyimpang ke BBM jika beritanya tentang topik lain).
 
-    instructions = f"""
-Kamu adalah Pemimpin Redaksi & Direktur Kreatif media riset data investigasi papan atas "{MEDIA_NAME}" (setara @theeconomicinfluence, Bloomberg QuickTake, Visual Capitalist).
-Misi: Mengubah berita terpilih menjadi CAROUSEL 5 SLIDE NARRATIVE DENGAN COPYWRITING KELAS DUNIA.
+ATURAN MUTLAK:
+- DILARANG memakai emoji, emotikon, atau simbol gambar apa pun di seluruh output.
+- DILARANG bahasa birokrat klise ("saatnya cermati", "dilema ekonomi nasional", "perlu ditingkatkan kesadaran").
+- Jangan mengarang angka. Jika angka resmi tidak ada di berita, pakai estimasi yang jelas berlabel "estimasi" atau perbandingan logis.
+- Teks akan tampil BESAR di layar HP dengan ruang terbatas: PATUHI BATAS PANJANG di bawah.
 
-STANDAR COPYWRITING INVESTIGATIF TAJAM:
-1. DILARANG KERAS MENGGUNAKAN BAHASA BIROKRAT KLISE (seperti: 'Saatnya cermati dampak dan strategi antisipasi', 'Dilema ekonomi nasional', 'Perlu ditingkatkan kesadaran'). Itu hambar dan membosankan!
-2. HOOK COVER (SLIDE 1): Wajib tajam, provokatif, sedikit satir, langsung menyentuh kepentingan publik. Gunakan tag <red>...</red> untuk 2-4 kata paling emosional.
-   - Contoh Hebat: 'Pajero Minum Pertalite, <red>Dompet Kita Makin Tercekik</red>: Kenapa Antrean SPBU Makin Gila?'
-   - Contoh Hebat: 'Rupiah Tembus 18.000, <red>Harga Barang Bakal Meledak</red>: Siapa yang Bakal Paling Menjerit?'
-3. HOOK SLIDE 2: Pertanyaan kritis menohok (contoh: 'Kenapa BBM Subsidi Tiba-tiba Langka dan Bikin Antrean Mengular?'). Tulis 3 poin investigasi yang diawali **Bold Lead-in** + 25 sampai 35 kata fakta mendalam (minimal 3 baris per poin!).
-4. HOOK SLIDE 3: Angka audit yang bikin terperangah (contoh: 'Berapa Triliun Rupiah Subsidi Kita yang Bocor ke Kantong yang Salah?'). Tulis metric spotlight angka (misal: 'Rp 150 Triliun+') dan 2 kolom analisis komparasi mendalam (masing-masing 3 butir padat).
-5. HOOK SLIDE 4: Panduan taktis aplikatif (contoh: 'Tiga Benteng Finansial Sebelum Subsidi Makin Mengetat'). Rancang 3 skenario mitigasi untuk 3 kelompok berbeda (Konsumen Ritel, Pelaku Usaha UMKM, Pengawas Kebijakan).
-6. VERDICT & DISKUSI (SLIDE 5): Kutipan kesimpulan berbobot + 3 butir poin kunci investigasi ('slide5_highlights') + pertanyaan diskusi pemantik ratusan komentar di Telegram/Instagram.
+SPESIFIKASI PER SLIDE:
+1. COVER "hook": maks 95 karakter, provokatif, sedikit satir, menyentuh kepentingan publik. Bungkus 2-4 kata paling emosional dengan <red>...</red>.
+   "hero_value": maks 10 karakter (contoh "16 Hari", "Rp 150 T+", "12,5%"). "hero_label": maks 90 karakter.
+2. SLIDE 2: "slide2_hook" berupa pertanyaan menohok, maks 80 karakter. "slide2_points": 3 poin, format "**Judul Singkat:** isi", judul maks 4 kata, isi 22-30 kata fakta mendalam. "slide2_takeaway": maks 130 karakter.
+3. SLIDE 3: "slide3_hook" angka audit yang bikin terperangah, maks 80 karakter. "slide3_metric_value": maks 10 karakter. "slide3_metric_label": maks 95 karakter. Dua kolom komparasi (judul maks 30 karakter), masing-masing 3 butir, 14-18 kata per butir. "slide3_alert_text": maks 130 karakter.
+4. SLIDE 4: "slide4_hook" panduan taktis, maks 70 karakter. "slide4_scenarios": 3 skenario untuk 3 kelompok berbeda, "tag" huruf kapital maks 32 karakter, "text" format "**Langkah:** isi" total 22-30 kata. "slide4_takeaway": maks 130 karakter.
+5. SLIDE 5: "slide5_hook" maks 60 karakter. "verdict": kutipan berbobot maks 180 karakter. "slide5_highlights": 3 butir, masing-masing 14-20 kata. "cta": pertanyaan pemantik komentar maks 150 karakter.
+6. "image_category": pilih SATU dari: retail, staples, fuel, macro, gold, stocks, automotive, general.
 
-Format output JSON murni tanpa markdown:
+Format output: JSON murni tanpa markdown, tepat dengan kunci berikut (isi nilai sesuai topik berita):
 {{
-  "subject_title": "Topik Berita (maks 25 karakter)",
-  "hook": "Pajero Minum Pertalite, <red>Dompet Kita Makin Tercekik</red>: Kenapa Antrean SPBU Makin Gila?",
-  "hero_value": "16 Hari",
-  "hero_label": "sisa ketahanan stok bbm subsidi nasional yang memicu alarm kelangkaan di spbu",
-
+  "subject_title": "judul topik maks 25 karakter",
+  "image_category": "retail",
+  "hook": "...",
+  "hero_value": "...",
+  "hero_label": "...",
   "slide2_eyebrow": "01 / DOKUMENTASI FAKTA",
-  "slide2_hook": "Kenapa BBM Subsidi Tiba-tiba Langka dan Bikin Antrean Mengular?",
-  "slide2_points": [
-    "**Penyalahgunaan Sistematis:** Ribuan kendaraan mewah dan armada industri besar kedapatan menjarah jatah BBM bersubsidi yang seharusnya diperuntukkan bagi rakyat kecil.",
-    "**Penimbunan Skala Masif:** Sindikat spekulan memanfaatkan celah pengawasan manual di lapangan untuk menimbun pasokan dan menjualnya kembali dengan harga industri.",
-    "**Lonjakan Konsumsi Tak Terkendali:** Mobilitas pasca-pandemi dan pertumbuhan kendaraan pribadi melampaui kuota APBN, diperparah disparitas harga keekonomian yang terlampau jauh."
-  ],
-  "slide2_takeaway": "Kelangkaan BBM bukan sekadar antrean fisik, melainkan cerminan tata kelola distribusi yang belum tepat sasaran.",
-
+  "slide2_hook": "...",
+  "slide2_points": ["**Judul:** isi", "**Judul:** isi", "**Judul:** isi"],
+  "slide2_takeaway": "...",
   "slide3_eyebrow": "02 / BEDAH DATA RISET",
-  "slide3_hook": "Berapa Triliun Rupiah Subsidi Kita yang Bocor ke Kantong yang Salah?",
-  "slide3_metric_value": "Rp 150 T+",
-  "slide3_metric_label": "estimasi alokasi anggaran subsidi energi yang rentan bocor akibat salah sasaran",
-  "slide3_col1_title": "Beban Dompet Konsumen Ritel",
-  "slide3_col1_points": [
-    "Waktu produktif masyarakat terbuang sia-sia 2 hingga 3 jam per minggu hanya untuk mengantre di SPBU.",
-    "Tarif ongkos logistik dan transportasi umum informal terkerek naik akibat kelangkaan bensin eceran.",
-    "Munculnya pasar gelap BBM dengan harga jauh di atas ketentuan resmi yang membebani komuter harian."
-  ],
-  "slide3_col2_title": "Beban Sektor Usaha & UMKM",
-  "slide3_col2_points": [
-    "Biaya operasional armada logistik UMKM melonjak tajam, menggerus margin laba usaha kecil menengah.",
-    "Keterlambatan pengiriman bahan baku mengganggu jadwal produksi dan siklus perputaran barang dagangan.",
-    "Penurunan produktivitas tenaga kerja harian karena kehabisan bahan bakar saat jam operasional sibuk."
-  ],
-  "slide3_alert_text": "Setiap liter subsidi yang salah sasaran adalah hak rakyat kecil yang dirampas, merugikan ekonomi negara hingga triliunan rupiah.",
-
+  "slide3_hook": "...",
+  "slide3_metric_value": "...",
+  "slide3_metric_label": "...",
+  "slide3_col1_title": "...",
+  "slide3_col1_points": ["...", "...", "..."],
+  "slide3_col2_title": "...",
+  "slide3_col2_points": ["...", "...", "..."],
+  "slide3_alert_text": "...",
   "slide4_eyebrow": "03 / SKENARIO STRATEGIS",
-  "slide4_hook": "Tiga Langkah Menghadapi Kebijakan Pengetatan BBM",
-  "slide4_scenarios": [
-    {{"tag": "SKENARIO KONSUMEN & KOMUTER", "text": "**Registrasi Digital Lebih Awal:** Segera daftarkan QR Code resmi kendaraan Anda dan atur rute perjalanan harian untuk meminimalkan konsumsi BBM."}},
-    {{"tag": "SKENARIO PELAKU USAHA & UMKM", "text": "**Efisiensi Rute Logistik:** Gabungkan jadwal pengiriman barang dan pertimbangkan konversi armada bertahap ke kendaraan listrik hemat biaya."}},
-    {{"tag": "SKENARIO KEBIJAKAN & PENGAWASAN", "text": "**Audit Penegakan Hukum:** Otoritas wajib menindak tegas oknum operator nakal serta memblokir nomor polisi kendaraan mewah yang nekat mengisi subsidi."}}
-  ],
-  "slide4_takeaway": "Krisis subsidi energi adalah momentum evaluasi efisiensi pengeluaran mobilitas harian kita.",
-
-  "verdict": "Antrean panjang di SPBU adalah cerminan ketidakadilan sistemik. Subsidi harus sampai ke mereka yang berhak, bukan dinikmati pemilik mobil mewah.",
-  "slide5_highlights": [
-    "Antrean panjang membuktikan kelemahan sistem pengawasan, bukan ketiadaan pasokan minyak mentah.",
-    "Mobil berkapasitas mesin besar wajib dilarang mengisi BBM bersubsidi demi rasa keadilan sosial.",
-    "Digitalisasi verifikasi QR Code harus transparan dan bebas pungutan liar di tingkat stasiun pengisian."
-  ],
-  "cta": "Menurutmu, siapa yang paling bertanggung jawab atas kelangkaan BBM subsidi ini dan apa solusi paling ampuh? Tulis pandanganmu di komentar!",
-  "sources": ["PT Pertamina (Persero)", "Kementerian ESDM RI", "Badan Pengatur Hilir Migas (BPH Migas)", "Kepolisian RI"]
+  "slide4_hook": "...",
+  "slide4_scenarios": [{{"tag": "SKENARIO ...", "text": "**Langkah:** isi"}}, {{"tag": "SKENARIO ...", "text": "..."}}, {{"tag": "SKENARIO ...", "text": "..."}}],
+  "slide4_takeaway": "...",
+  "slide5_eyebrow": "04 / KESIMPULAN RISET",
+  "slide5_hook": "...",
+  "verdict": "...",
+  "slide5_highlights": ["...", "...", "..."],
+  "cta": "...",
+  "sources": ["sumber resmi relevan 1", "sumber resmi relevan 2", "sumber resmi relevan 3"]
 }}
-"""
+""".strip()
 
-    prompt = f"""
-{instructions}
+
+def analyze_with_gemini(news_item: Dict[str, str], supporting: List[str], prog_cfg: Dict[str, Any]) -> Dict[str, Any]:
+    if not GEMINI_API_KEY:
+        raise EnvironmentError("GEMINI_API_KEY belum terpasang!")
+
+    prompt = f"""{build_instructions()}
 
 Topik Berita Terpilih:
 - Judul: {news_item['title']}
-- Ringkasan: {news_item['summary']}
+- Ringkasan: {news_item.get('summary', '')}
+- Berita terkait: {' | '.join(supporting[:4])}
+- Program: {prog_cfg['name']} ({prog_cfg['subtitle']})
 
-Kembalikan HANYA JSON murni tanpa markdown ```json.
-""".strip()
+Kembalikan HANYA JSON murni tanpa markdown.""".strip()
 
     payload = {
         "contents": [{"parts": [{"text": prompt}]}],
-        "generationConfig": {"temperature": 0.40, "responseMimeType": "application/json"},
+        "generationConfig": {"temperature": 0.4, "responseMimeType": "application/json"},
     }
-
-    candidate_models = get_available_gemini_models()
-    for model_name in candidate_models:
+    last_err = ""
+    for model_name in get_available_gemini_models():
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={GEMINI_API_KEY}"
         try:
-            print(f"[Gemini] Mengolah data editorial ({prog_cfg['name']}) dengan model: {model_name}...")
-            res = requests.post(url, json=payload, timeout=50)
+            print(f"[Gemini] Menganalisis ({prog_cfg['name']}) dengan model: {model_name}...")
+            res = requests.post(url, json=payload, timeout=60)
             if res.status_code == 200:
                 raw = res.json()["candidates"][0]["content"]["parts"][0]["text"]
                 cleaned = re.sub(r"^```(?:json)?\s*|\s*```$", "", raw.strip())
-                parsed = json.loads(cleaned)
+                parsed = strip_emoji_deep(json.loads(cleaned))   # jaring pengaman 0% emoji
                 parsed["_model_used"] = model_name
-                print(f"[Gemini] Analisis Sukses: {parsed.get('subject_title')}")
+                print(f"[Gemini] Sukses: {parsed.get('subject_title')}")
                 return parsed
-        except Exception:
-            continue
-
-    raise RuntimeError("Seluruh model Gemini gagal menganalisis topik ini.")
+            last_err = f"{model_name}: HTTP {res.status_code}"
+        except Exception as err:
+            last_err = f"{model_name}: {err}"
+    raise RuntimeError(f"Seluruh model Gemini gagal. Terakhir: {last_err}")
 
 
 # ==============================================================================
-# 5. CONTENT BUILDER (MENYIAPKAN DATA 5 SLIDE PENUH)
+# 7. CONTENT BUILDER
 # ==============================================================================
 def build_metrika_content(
-    analysis: Dict[str, Any],
-    prog_cfg: Dict[str, Any],
-    images: Dict[str, Path],
+    analysis: Dict[str, Any], prog_cfg: Dict[str, Any], images: Dict[str, Path], news_item: Dict[str, str]
 ) -> Dict[str, Any]:
-    today_str = datetime.datetime.now().strftime("%d %b %Y")
-    
+    a = analysis
     return {
         "program": prog_cfg["id"],
-        "date": today_str,
-        "hook": analysis.get("hook", "Analisis Data Finansial Hari Ini"),
+        "date": datetime.datetime.now().strftime("%d %b %Y"),
+        "hook": a.get("hook", "Analisis Data Finansial Hari Ini"),
         "hero": {
-            "value": analysis.get("hero_value", "Level Krusial"),
-            "label": analysis.get("hero_label", "acuan data pasar resmi terverifikasi"),
+            "value": a.get("hero_value", "Data Kunci"),
+            "label": a.get("hero_label", "acuan data resmi terverifikasi"),
         },
         "hero_image": str(images["slide1"]),
+        "hero_image_credit": news_item.get("cover_credit", ""),
         "slide2_image": str(images["slide2"]),
         "slide3_image": str(images["slide3"]),
         "slide4_image": str(images["slide4"]),
         "slide5_image": str(images["slide5"]),
 
         "slide_context": {
-            "eyebrow": analysis.get("slide2_eyebrow", "01 / DOKUMENTASI FAKTA"),
-            "hook": analysis.get("slide2_hook", "Kenapa BBM Subsidi Tiba-tiba Langka dan Bikin Antrean Mengular?"),
-            "points": analysis.get("slide2_points", [
-                "**Penyalahgunaan Sistematis:** Kendaraan mewah dan industri besar kedapatan menjarah jatah BBM rakyat kecil.",
-                "**Penimbunan Skala Masif:** Sindikat spekulan menimbun pasokan dan menjualnya kembali dengan harga industri.",
-                "**Lonjakan Konsumsi:** Pertumbuhan kendaraan pribadi melampaui kuota APBN yang ditetapkan pemerintah."
-            ]),
-            "takeaway": analysis.get("slide2_takeaway", "Kelangkaan BBM bukan sekadar antrean, tapi cerminan distribusi yang belum tepat sasaran."),
+            "eyebrow": a.get("slide2_eyebrow", "01 / DOKUMENTASI FAKTA"),
+            "hook": a.get("slide2_hook", "Kenapa Isu Ini Tiba-tiba Meledak di Lapangan?"),
+            "points": a.get("slide2_points") or [
+                "**Pemicu Utama:** Perubahan kebijakan dan harga memicu reaksi cepat di tingkat konsumen.",
+                "**Dampak Langsung:** Pengeluaran harian rumah tangga bergeser dan tekanan terasa di lapangan.",
+                "**Sinyal Pasar:** Pelaku usaha mulai menyesuaikan strategi harga dan stok.",
+            ],
+            "takeaway": a.get("slide2_takeaway", "Isu ini bukan sekadar berita harian, melainkan sinyal tekanan pada dompet publik."),
         },
-
         "slide_metric": {
-            "eyebrow": analysis.get("slide3_eyebrow", "02 / BEDAH DATA RISET"),
-            "hook": analysis.get("slide3_hook", "Berapa Triliun Rupiah Subsidi Kita yang Bocor ke Kantong yang Salah?"),
-            "metric_value": analysis.get("slide3_metric_value", "Rp 150 T+"),
-            "metric_label": analysis.get("slide3_metric_label", "estimasi alokasi anggaran energi yang rentan bocor akibat salah sasaran"),
-            "col1_title": analysis.get("slide3_col1_title", "Beban Dompet Konsumen Ritel"),
-            "col1_points": analysis.get("slide3_col1_points", [
-                "Waktu produktif terbuang sia-sia 2-3 jam per minggu mengantre di SPBU.",
-                "Tarif logistik dan transportasi umum informal terkerek naik.",
-                "Pasar gelap BBM eceran membebani pengeluaran harian komuter."
-            ]),
-            "col2_title": analysis.get("slide3_col2_title", "Beban Sektor Usaha & UMKM"),
-            "col2_points": analysis.get("slide3_col2_points", [
-                "Biaya operasional armada logistik UMKM melonjak drastis.",
-                "Keterlambatan pasokan mengganggu jadwal produksi dan distribusi.",
-                "Penurunan produktivitas kerja harian karena kendala bahan bakar."
-            ]),
-            "alert_text": analysis.get("slide3_alert_text", "Setiap liter subsidi yang salah sasaran adalah hak rakyat kecil yang dirampas."),
+            "eyebrow": a.get("slide3_eyebrow", "02 / BEDAH DATA RISET"),
+            "hook": a.get("slide3_hook", "Berapa Besar Angka yang Selama Ini Tak Terlihat?"),
+            "metric_value": a.get("slide3_metric_value", a.get("hero_value", "")),
+            "metric_label": a.get("slide3_metric_label", "estimasi angka kunci dari data resmi"),
+            "col1_title": a.get("slide3_col1_title", "Beban Konsumen"),
+            "col1_points": a.get("slide3_col1_points") or ["Pengeluaran harian naik.", "Daya beli tertekan.", "Pilihan belanja menyempit."],
+            "col2_title": a.get("slide3_col2_title", "Beban Pelaku Usaha"),
+            "col2_points": a.get("slide3_col2_points") or ["Margin usaha menipis.", "Biaya operasional naik.", "Perputaran barang melambat."],
+            "alert_text": a.get("slide3_alert_text", "Angka resmi perlu dibaca bersama dampak nyata di lapangan."),
         },
-
         "slide_strategy": {
-            "eyebrow": analysis.get("slide4_eyebrow", "03 / SKENARIO STRATEGIS"),
-            "hook": analysis.get("slide4_hook", "Tiga Langkah Menghadapi Kebijakan Pengetatan BBM"),
-            "scenarios": analysis.get("slide4_scenarios", [
-                {"tag": "SKENARIO KONSUMEN & KOMUTER", "text": "**Registrasi QR Code:** Daftarkan kendaraan resmi lebih awal dan optimalkan rute harian."},
-                {"tag": "SKENARIO PELAKU USAHA & UMKM", "text": "**Efisiensi Logistik:** Gabungkan jadwal pengiriman dan evaluasi kendaraan operasional."},
-                {"tag": "SKENARIO PENGAWASAN HUKUM", "text": "**Sanksi Tegas Pelanggar:** Blokir pelat kendaraan mewah yang nekat membeli subsidi."}
-            ]),
-            "takeaway": analysis.get("slide4_takeaway", "Krisis subsidi energi adalah momentum evaluasi efisiensi pengeluaran mobilitas harian kita."),
+            "eyebrow": a.get("slide4_eyebrow", "03 / SKENARIO STRATEGIS"),
+            "hook": a.get("slide4_hook", "Tiga Langkah Menghadapi Perubahan Ini"),
+            "scenarios": a.get("slide4_scenarios") or [
+                {"tag": "SKENARIO KONSUMEN", "text": "**Atur Prioritas:** Susun ulang anggaran bulanan dan kejar harga terbaik."},
+                {"tag": "SKENARIO PELAKU USAHA", "text": "**Efisiensi Biaya:** Tinjau stok, rantai pasok, dan strategi harga."},
+                {"tag": "SKENARIO PENGAWAS KEBIJAKAN", "text": "**Transparansi Data:** Publikasikan data agar publik bisa mengawasi."},
+            ],
+            "takeaway": a.get("slide4_takeaway", "Persiapan lebih awal selalu lebih murah daripada reaksi di menit terakhir."),
         },
-
-        "verdict": analysis.get("verdict", "Antrean panjang di SPBU adalah cerminan ketidakadilan sistemik. Subsidi harus sampai ke mereka yang berhak, bukan dinikmati pemilik mobil mewah."),
-        "slide5_highlights": analysis.get("slide5_highlights", [
-            "Antrean panjang membuktikan kelemahan sistem pengawasan, bukan ketiadaan pasokan minyak mentah.",
-            "Mobil berkapasitas mesin besar wajib dilarang mengisi BBM bersubsidi demi rasa keadilan sosial.",
-            "Digitalisasi verifikasi QR Code harus transparan dan bebas pungutan liar di tingkat stasiun pengisian."
-        ]),
-        "cta": analysis.get("cta", "Menurutmu, siapa yang paling bertanggung jawab atas kelangkaan BBM subsidi ini dan apa solusi paling ampuh? Tulis pandanganmu di komentar!"),
-        "sources": analysis.get("sources") or prog_cfg["sources"],
+        "slide5_eyebrow": a.get("slide5_eyebrow", "04 / KESIMPULAN RISET"),
+        "slide5_hook": a.get("slide5_hook", "Verdict Riset dan Ruang Diskusi"),
+        "verdict": a.get("verdict", "Data berbicara lebih jujur daripada opini; publik berhak atas angka yang transparan."),
+        "slide5_highlights": a.get("slide5_highlights") or [
+            "Dampak terbesar jatuh pada kelompok dengan ruang anggaran paling sempit.",
+            "Respons kebijakan perlu diukur dengan data, bukan sekadar pernyataan.",
+            "Transparansi angka adalah syarat agar publik bisa menilai dengan adil.",
+        ],
+        "cta": a.get("cta", "Menurutmu, siapa yang paling terdampak dan apa solusi paling masuk akal? Tulis di komentar."),
+        "sources": a.get("sources") or prog_cfg["sources"],
     }
 
 
 # ==============================================================================
-# 6. DISTRIBUSI KE TELEGRAM (ALBUM 5 SLIDE CAROUSEL)
+# 8. DISTRIBUSI TELEGRAM
 # ==============================================================================
-def send_outputs_to_telegram(
-    carousel_paths: List[Path],
-    content: Dict[str, Any],
-    news_item: Dict[str, str],
-) -> None:
+def send_outputs_to_telegram(carousel_paths: List[Path], content: Dict[str, Any], news_item: Dict[str, str]) -> None:
     if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
         print("[Telegram] Token/Chat ID belum diset. Melewati kirim Telegram.")
         return
 
     base_url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}"
-    clean_h = re.sub(r"</?red>", "", content["hook"])
-
-    header_caption = (
-        f"📊 *{MEDIA_NAME.upper()} • JURNALISME DATA & RISET FINANSIAL*\n\n"
-        f"*{clean_h}*\n\n"
-        f"📌 *Angka Kunci:* {content['hero']['value']} ({content['hero']['label']})\n\n"
-        f"⚖️ *Verdict Redaksi:*\n_{content['verdict']}_\n\n"
-        f"💬 *Diskusi Publik:*\n{content['cta']}\n\n"
-        f"📚 *Rujukan Data:* " + ", ".join(content.get("sources", []))
+    clean_h = strip_emoji(re.sub(r"</?red>", "", content["hook"]))
+    credit = content.get("hero_image_credit")
+    caption = (
+        f"{MEDIA_NAME.upper()} | JURNALISME DATA & RISET FINANSIAL\n\n"
+        f"{clean_h}\n\n"
+        f"ANGKA KUNCI: {content['hero']['value']} ({content['hero']['label']})\n\n"
+        f"VERDICT REDAKSI:\n{content['verdict']}\n\n"
+        f"DISKUSI PUBLIK:\n{content['cta']}\n\n"
+        f"RUJUKAN DATA: " + ", ".join(content.get("sources", []))
+        + (f"\nFOTO SAMPUL: {credit}" if credit else "")
+        + f"\nSUMBER BERITA: {news_item.get('real_link') or news_item['link']}"
     )
 
-    print(f"[Telegram] Mengirim album Carousel ({len(carousel_paths)} slide)...")
-    media_group = []
-    files_payload = {}
+    media_group, files_payload = [], {}
     for idx, img_path in enumerate(carousel_paths):
-        attach_key = f"slide_{idx}"
-        files_payload[attach_key] = img_path.open("rb")
-        item_obj: Dict[str, Any] = {"type": "photo", "media": f"attach://{attach_key}"}
+        key = f"slide_{idx}"
+        files_payload[key] = img_path.open("rb")
+        item: Dict[str, Any] = {"type": "photo", "media": f"attach://{key}"}
         if idx == 0:
-            item_obj["caption"] = header_caption[:1024]
-            item_obj["parse_mode"] = "Markdown"
-        media_group.append(item_obj)
+            item["caption"] = caption[:1024]
+        media_group.append(item)
 
+    print(f"[Telegram] Mengirim album carousel ({len(carousel_paths)} slide)...")
     try:
-        res = requests.post(
-            f"{base_url}/sendMediaGroup",
-            data={"chat_id": TELEGRAM_CHAT_ID, "media": json.dumps(media_group)},
-            files=files_payload,
-            timeout=120,
-        )
-        if res.status_code == 200:
-            print("[Telegram] Sukses mengirim album Carousel 5 Slide!")
-        else:
-            print(f"[Telegram] Respon Telegram: {res.text}")
+        res = requests.post(f"{base_url}/sendMediaGroup",
+                            data={"chat_id": TELEGRAM_CHAT_ID, "media": json.dumps(media_group)},
+                            files=files_payload, timeout=120)
+        print("[Telegram] Sukses mengirim album." if res.status_code == 200 else f"[Telegram] Respon: {res.text}")
     finally:
         for f in files_payload.values():
             f.close()
 
 
 # ==============================================================================
-# 7. PIPELINE UTAMA
+# 9. PIPELINE UTAMA
 # ==============================================================================
 def main() -> None:
-    prog_cfg = get_daily_program_config()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--check-images", action="store_true", help="Uji semua URL TOPIC_IMAGE_REGISTRY lalu keluar.")
+    args = parser.parse_args()
+    if args.check_images:
+        check_registry_images()
+        return
 
+    prog_cfg = get_daily_program_config()
     print("=" * 72)
-    print(f"🚀 MEMULAI PIPELINE CAROUSEL 5 SLIDE: {MEDIA_NAME.upper()} • {prog_cfg['name']}")
-    print(f"📅 Rubrik: {prog_cfg['subtitle']}")
+    print(f"MEMULAI PIPELINE CAROUSEL 5 SLIDE: {MEDIA_NAME.upper()} | {prog_cfg['name']}")
+    print(f"Rubrik: {prog_cfg['subtitle']}")
     print("=" * 72)
 
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     CAROUSEL_DIR.mkdir(parents=True, exist_ok=True)
 
-    # 1. Ingestion berita RSS
-    news_item, supporting = fetch_latest_program_news(prog_cfg)
+    # 1. Berita + foto cover dari og:image
+    SLIDE_IMG_PATHS["slide1"].unlink(missing_ok=True)
+    candidates = fetch_candidates(prog_cfg)
+    news_item, supporting = select_news_with_cover(candidates)
 
-    # 2. Analisis AI Gemini untuk 5 Slide Lengkap dengan Copywriting Tajam
+    # 2. Analisis AI
     analysis = analyze_with_gemini(news_item, supporting, prog_cfg)
 
-    # 3. Ambil 5 Foto Jurnalistik Nyata & Terverifikasi (Bebas Bot-Detection)
-    images = download_editorial_images_for_carousel(news_item, analysis)
+    # 3. Foto tematik slide 2-5 (dan slide 1 bila og:image gagal)
+    images, category = prepare_images(news_item, analysis)
 
-    # 4. Adaptasi ke Skema Konten Lengkap
-    content = build_metrika_content(analysis, prog_cfg, images)
+    # 4. Konten
+    content = build_metrika_content(analysis, prog_cfg, images, news_item)
+    (OUTPUT_DIR / "latest_analysis.json").write_text(
+        json.dumps({**content, "_image_category": category}, indent=2, ensure_ascii=False), encoding="utf-8")
 
-    latest_json = OUTPUT_DIR / "latest_analysis.json"
-    latest_json.write_text(json.dumps(content, indent=2, ensure_ascii=False), encoding="utf-8")
-
-    # 5. Render Carousel 5 Slide Berkualitas Agensi via Playwright
-    print("[Render] Memulai render 5 Slide Carousel 1080x1350...")
+    # 5. Render
+    print("[Render] Memulai render 5 slide carousel 1080x1350...")
     carousel_files = render_carousel_slides(content, CAROUSEL_DIR)
-    print(f"[Render] Sukses merender {len(carousel_files)} slide carousel.")
+    print(f"[Render] Sukses merender {len(carousel_files)} slide.")
 
-    # 6. Kirim Album Carousel ke Telegram
+    # 6. Telegram
     send_outputs_to_telegram(carousel_files, content, news_item)
 
-    # 7. Update Cache Link
+    # 7. Cache
     save_posted_link(news_item["link"])
-    print(f"[Cache] Link berhasil disimpan ke {CACHE_FILE}.")
-    print(f"✅ PIPELINE CAROUSEL {prog_cfg['name']} SELESAI DENGAN SUKSES!")
+    print(f"[Cache] Link disimpan ke {CACHE_FILE}.")
+    print(f"PIPELINE {prog_cfg['name']} SELESAI.")
 
 
 if __name__ == "__main__":
     try:
         main()
     except Exception as err:
-        print(f"❌ [ERROR] Pipeline berhenti: {err}", file=sys.stderr)
+        print(f"[ERROR] Pipeline berhenti: {err}", file=sys.stderr)
         sys.exit(1)
