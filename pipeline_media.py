@@ -273,17 +273,40 @@ def fetch_latest_program_news(prog_cfg: Dict[str, Any]) -> Tuple[Dict[str, str],
     return primary_item, supporting
 
 
+THEMATIC_PALETTES = {
+    "automotive": ("Teknologi & Transportasi", (15, 23, 42), (220, 38, 38)),
+    "finance": ("Pasar Modal & Finansial", (10, 20, 35), (37, 99, 235)),
+    "labor": ("Upah & Ketenagakerjaan", (28, 20, 10), (217, 119, 6)),
+    "lifestyle": ("Ekonomi & Gaya Hidup", (10, 30, 28), (13, 148, 136)),
+}
+
+def generate_curated_editorial_hero(topic_theme: str, headline: str, save_path: Path) -> Path:
+    label, bg_rgb, accent_rgb = THEMATIC_PALETTES.get(topic_theme, THEMATIC_PALETTES["lifestyle"])
+    im = Image.new("RGB", (1200, 800), bg_rgb)
+    d = ImageDraw.Draw(im)
+    d.rectangle([(0, 775), (1200, 800)], fill=accent_rgb)
+    d.rectangle([(50, 50), (1150, 730)], outline=(40, 55, 75), width=2)
+    for y in range(80, 700, 80):
+        d.line([(60, y), (1140, y)], fill=(25, 35, 50), width=1)
+    
+    clean_h = re.sub(r'</?red>', '', headline)
+    d.text((80, 320), f"METRIKA RISET DATA • {label.upper()}", fill=accent_rgb)
+    d.text((80, 380), clean_h[:65], fill=(245, 245, 245))
+    im.save(save_path, format="JPEG", quality=92)
+    print(f"[Photo] Visual editorial tersusun rapi: {save_path.name}")
+    return save_path
+
 def fetch_editorial_photo_with_meta(
     news_item: Dict[str, str], subject_name: str, save_path: Path
 ) -> Tuple[Optional[Path], str]:
     candidate_urls: List[str] = []
     meta_text = f"{subject_name} {news_item['title']} {news_item.get('summary', '')}"
 
-    # Hanya ambil foto artikel resmi terverifikasi dari website berita asal
+    # 1. Coba ikuti link asli artikel berita untuk ambil og:image
     if BeautifulSoup is not None:
         try:
             resp = requests.get(
-                news_item["link"], headers=HTTP_HEADERS, timeout=10, allow_redirects=True
+                news_item["link"], headers=HTTP_HEADERS, timeout=8, allow_redirects=True
             )
             if resp.status_code == 200:
                 soup = BeautifulSoup(resp.text, "html.parser")
@@ -293,28 +316,69 @@ def fetch_editorial_photo_with_meta(
                     )
                     if meta and meta.get("content", "").startswith("http"):
                         val = meta["content"].strip()
-                        # Pastikan bukan domain terblokir atau logo generic
                         if not any(b in val.lower() for b in BLOCKED_IMAGE_DOMAINS):
-                            if not any(x in val.lower() for x in ["logo", "icon", "banner-ad", "default", "placeholder"]):
+                            if not any(x in val.lower() for x in ["logo", "icon", "banner", "placeholder"]):
                                 candidate_urls.append(val)
         except Exception:
             pass
 
+    # 2. Coba cari foto resmi di Wikipedia API
+    clean_entity = re.sub(r'[^\w\s]', '', subject_name).strip()
+    if clean_entity:
+        try:
+            wiki_url = f"https://en.wikipedia.org/w/api.php?action=query&titles={urllib.parse.quote(clean_entity)}&prop=pageimages&format=json&pithumbsize=1200"
+            w_res = requests.get(wiki_url, headers=HTTP_HEADERS, timeout=6)
+            if w_res.status_code == 200:
+                pages = w_res.json().get("query", {}).get("pages", {})
+                for _, v in pages.items():
+                    if "thumbnail" in v:
+                        candidate_urls.append(v["thumbnail"]["source"])
+        except Exception:
+            pass
+
+    # 3. Coba cari di Bing Image Search dengan filter ketat anti-channel logo
+    search_q = f"{clean_entity} photo high resolution -logo -channel"
+    bing_url = (
+        "https://www.bing.com/images/search?q="
+        + urllib.parse.quote(search_q)
+        + "&qft=+filterui:imagesize-large"
+    )
+    try:
+        b_resp = requests.get(bing_url, headers=HTTP_HEADERS, timeout=6)
+        if b_resp.status_code == 200:
+            matches = re.findall(r'murl&quot;:&quot;(https?://[^&]+?)&quot;', b_resp.text)
+            for m in matches[:6]:
+                m_low = m.lower()
+                if not any(b in m_low for b in [".in/", "aajtak", "indiatoday", "zeenews", "ndtv", "logo", "icon", "channel", "banner"]):
+                    candidate_urls.append(m)
+    except Exception:
+        pass
+
+    # Validasi download
     for img_url in candidate_urls:
         try:
-            r = requests.get(img_url, headers=HTTP_HEADERS, timeout=10)
-            if r.status_code == 200 and len(r.content) > 20_000:
+            r = requests.get(img_url, headers=HTTP_HEADERS, timeout=8)
+            if r.status_code == 200 and len(r.content) > 15_000:
                 pil_img = Image.open(io.BytesIO(r.content)).convert("RGB")
-                # Hanya izinkan foto landscape berkualitas tinggi
-                if pil_img.width >= 600 and pil_img.height >= 350:
+                if pil_img.width >= 500 and pil_img.height >= 300:
                     pil_img.save(save_path, format="JPEG", quality=92)
-                    print(f"[Photo] Foto artikel resmi berhasil diunduh: {img_url[:60]}...")
+                    print(f"[Photo] Foto berhasil diunduh: {img_url[:60]}...")
                     return save_path, f"{meta_text} {img_url}"
         except Exception:
             continue
 
-    # Jika tidak ada foto resmi terverifikasi, kembalikan None agar dirender sebagai infografis data SVG murni
-    return None, meta_text
+    # Fallback Terkurasi: Jamin foto tidak pernah None!
+    theme_key = "lifestyle"
+    sub_low = subject_name.lower()
+    if any(k in sub_low for k in ["mobil", "motor", "tesla", "kendaraan", "transportasi"]):
+        theme_key = "automotive"
+    elif any(k in sub_low for k in ["saham", "ihsg", "msci", "bursa", "investasi"]):
+        theme_key = "finance"
+    elif any(k in sub_low for k in ["gaji", "upah", "ojol", "buruh", "kerja"]):
+        theme_key = "labor"
+
+    generated = generate_curated_editorial_hero(theme_key, news_item["title"], save_path)
+    return generated, meta_text
 
 
 # ==============================================================================
@@ -398,6 +462,11 @@ GAYA HEADLINE EDITORIAL (@theeconomicinfluence):
 - Wajib tulis kalimat hook provokatif, sedikit satir, atau pertanyaan tajam ala @theeconomicinfluence.
 - Gunakan tag <red>...</red> untuk 2-4 kata kunci paling emosional/menohok (Contoh: 'IHSG Anjlok, <red>Danantara Justru Melihat Kesempatan</red> Lebih Besar').
 
+ATURAN DENSITAS & ARGUMEN EDITORIAL:
+1. WAJIB KAYA TEKS & ARGUMEN: Buat 3 sampai 4 butir poin mendalam per kolom (jangan hanya 1-2 kalimat pendek).
+2. FORMAT BOLD LEAD-IN: Setiap poin wajib diawali frasa tebal diikuti uraian 20-30 kata (contoh: '**Dampak Pasar Ritel:** Penurunan indeks memicu aksi panic selling pada investor ritel...').
+3. SERTAKAN OVERVIEW CONTEXT: Tulis 1 paragraf ringkas (25-35 kata) di field 'overview_context' yang merangkum dinamika isu.
+
 ATURAN ANTI-AI-SLOP:
 1. PRODUK WAJIB NYATA & RESMI DI INDONESIA: DILARANG mengarang barang masa depan. Harus produk nyata yang resmi beredar saat ini (contoh: iPhone 16 Pro Max 256GB, Vespa Sprint 150, Tiket Konser CAT 1, PS5 Slim, Sewa Kos Setahun).
 2. HARGA VALID: Tentukan estimasi harga pasar wajar integer Rupiah (misal: 24999000).
@@ -423,6 +492,11 @@ Misi: Membedah isu berita hangat yang viral di Indonesia secara objektif: Fakta 
 GAYA HEADLINE EDITORIAL (@theeconomicinfluence):
 - Wajib tulis kalimat hook provokatif, sedikit satir, atau pertanyaan tajam ala @theeconomicinfluence.
 - Gunakan tag <red>...</red> untuk 2-4 kata kunci paling emosional/menohok (Contoh: 'IHSG Anjlok, <red>Danantara Justru Melihat Kesempatan</red> Lebih Besar').
+
+ATURAN DENSITAS & ARGUMEN EDITORIAL:
+1. WAJIB KAYA TEKS & ARGUMEN: Buat 3 sampai 4 butir poin mendalam per kolom (jangan hanya 1-2 kalimat pendek).
+2. FORMAT BOLD LEAD-IN: Setiap poin wajib diawali frasa tebal diikuti uraian 20-30 kata (contoh: '**Dampak Pasar Ritel:** Penurunan indeks memicu aksi panic selling pada investor ritel...').
+3. SERTAKAN OVERVIEW CONTEXT: Tulis 1 paragraf ringkas (25-35 kata) di field 'overview_context' yang merangkum dinamika isu.
 
 ATURAN ANTI-AI-SLOP:
 1. FAKTA BERITA NYATA: Ringkas fakta inti peristiwa dengan jernih tanpa sensasionalisme.
@@ -454,6 +528,11 @@ Misi: Menyajikan riset statistik, keuangan, pasar modal, dan tren ekonomi nyata 
 GAYA HEADLINE EDITORIAL:
 - Kalimat hook harus tajam, provokatif, dan berbobot data.
 - Gunakan tag <red>...</red> untuk 2-4 kata kunci paling emosional/menohok (Contoh: 'Investor Panik, <red>IHSG Terjun Bebas</red> Setelah Badai MSCI. Siapa Untung?').
+
+ATURAN DENSITAS & ARGUMEN EDITORIAL:
+1. WAJIB KAYA TEKS & ARGUMEN: Buat 3 sampai 4 butir poin mendalam per kolom (jangan hanya 1-2 kalimat pendek).
+2. FORMAT BOLD LEAD-IN: Setiap poin wajib diawali frasa tebal diikuti uraian 20-30 kata (contoh: '**Dampak Pasar Ritel:** Penurunan indeks memicu aksi panic selling pada investor ritel...').
+3. SERTAKAN OVERVIEW CONTEXT: Tulis 1 paragraf ringkas (25-35 kata) di field 'overview_context' yang merangkum dinamika isu.
 
 ATURAN ANTI-AI-SLOP:
 1. DATA VALID & RELEVAN SESUAI TOPIK BERITA: Seluruh data, judul slide, dan poin analisis WAJIB 100% relevan dengan berita yang diberikan. DILARANG mencampuradukkan topik yang tidak relevan (seperti biaya sewa kos saat membahas saham/IHSG/MSCI).
@@ -545,6 +624,7 @@ def build_metrika_content(
             "slides": [
                 {
                     "heading": f"{subject_title} vs Upah Riil Pekerja",
+                    "overview_context": analysis.get("overview_context", "Perbandingan jam kerja riil pekerja dan pengemudi transportasi daring terhadap nilai barang konsumsi."),
                     "metric": {
                         "value": f"{metrics['ump_months']} Bulan",
                         "label": f"Gaji bersih UMP DKI Jakarta 2025 ({format_rupiah(UMP_JAKARTA_2025)}/bln)",
@@ -618,7 +698,8 @@ def build_metrika_content(
             },
             "slides": [
                 {
-                    "heading": "Fakta di Balik Kehebohan Isu",
+                    "heading": analysis.get("slide_heading", "Fakta di Balik Kehebohan Isu"),
+                    "overview_context": analysis.get("overview_context", "Latar belakang dan dinamika polarisasi opini publik yang berkembang di media sosial."),
                     "columns": [
                         {
                             "title": "Fakta Terverifikasi",
@@ -672,6 +753,7 @@ def build_metrika_content(
             "slides": [
                 {
                     "heading": slide_heading,
+                    "overview_context": analysis.get("overview_context", "Analisis mendalam mengenai latar belakang data dan implikasi strategis terhadap masyarakat."),
                     "metric": {
                         "value": metric_val,
                         "label": metric_lbl,
