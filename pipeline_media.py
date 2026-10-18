@@ -43,7 +43,7 @@ try:
 except ImportError:
     BeautifulSoup = None
 
-from PIL import Image
+from PIL import Image, ImageDraw, ImageFont
 
 # Import Modul Render Editorial METRIKA
 from metrika_render import (
@@ -91,6 +91,7 @@ SUBTITLE_PATH = OUTPUT_DIR / "subtitles.json"
 HERO_IMG_PATH = OUTPUT_DIR / "editorial_hero.jpg"
 SLIDE2_IMG_PATH = OUTPUT_DIR / "editorial_slide2.jpg"
 SLIDE3_IMG_PATH = OUTPUT_DIR / "editorial_verdict.jpg"
+VERDICT_IMG_PATH = SLIDE3_IMG_PATH
 FINAL_VIDEO_PATH = OUTPUT_DIR / "tiktok_reels_metrika.mp4"
 
 # Regulasi & Benchmark Ekonomi Resmi Indonesia
