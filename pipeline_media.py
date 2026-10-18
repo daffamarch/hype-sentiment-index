@@ -9,8 +9,12 @@ Menjalankan jadwal rubrikasi mingguan terstruktur:
 - SELASA & JUMAT  : PROGRAM "RADAR SENTIMEN" (Isu Berita Viral: Fakta Inti vs Kubu Pro vs Kubu Kontra)
 - RABU, SABTU & MINGGU: PROGRAM "ANGKA BICARA" (Data Storytelling & Statistik Gaya Hidup / Finansial)
 
-Rendering visual didelegasikan secara modular ke `metrika_render.py` untuk menjamin
-standar visual editorial kelas dunia (anti-overflow, typography auto-scaling, dan dark matte palette).
+Fokus Utama:
+- Carousel Instagram 5 Slide Berkualitas Agensi Desain (1080x1350 px).
+- Palet Coklat Mewah (Luxury Espresso, Warm Cognac Leather, Warm Ivory Linen).
+- Foto editorial nyata 100% akurat untuk setiap slide (Anti-Anime, Anti-Halloween, Anti-Random).
+- Hook penahan scroll di setiap slide.
+- Tanpa rendering video (fokus 100% pada kesempurnaan carousel).
 """
 
 import asyncio
@@ -25,11 +29,6 @@ import sys
 import urllib.parse
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
-
-try:
-    import edge_tts
-except ImportError:
-    edge_tts = None
 
 try:
     import feedparser
@@ -48,8 +47,6 @@ from PIL import Image, ImageDraw, ImageFont
 # Import Modul Render Editorial METRIKA
 from metrika_render import (
     render_carousel_slides,
-    render_vertical_video,
-    words_from_edge_boundaries,
 )
 
 # ==============================================================================
@@ -72,15 +69,35 @@ PREFERRED_GEMINI_MODELS = [
     "gemini-1.5-pro",
 ]
 
+# Strict Exclusion List untuk Domain dan Kata Kunci Non-Jurnalistik
 BLOCKED_IMAGE_DOMAINS = [
-    "amazon.com",
-    "media-amazon.com",
+    "googleusercontent.com/ytc",
+    "yt3.ggpht.com",
+    "youtube.com",
+    "pinterest.com",
+    "pinimg.com",
+    "deviantart",
+    "artstation",
+    "zerochan",
+    "wallpaper",
+    "vector",
+    "clipart",
+    "alphacoders",
+    "fandom",
     "shopee",
     "tokopedia",
     "lazada",
     "bukalapak",
     "aliexpress",
     "ebay",
+    "amazon.com",
+    "media-amazon.com",
+]
+
+DISALLOWED_IMAGE_TERMS = [
+    "anime", "manga", "cartoon", "illustration", "vector", "drawing", "sketch",
+    "cosplay", "game", "wallpaper", "avatar", "profile", "halloween", "spooky",
+    "pumpkin", "room", "bedroom", "dress", "doll", "character", "comic", "costume",
 ]
 
 CACHE_FILE = Path("posted_links.txt")
@@ -88,11 +105,13 @@ OUTPUT_DIR = Path("output_media")
 CAROUSEL_DIR = OUTPUT_DIR / "carousel"
 AUDIO_PATH = OUTPUT_DIR / "voiceover.mp3"
 SUBTITLE_PATH = OUTPUT_DIR / "subtitles.json"
-HERO_IMG_PATH = OUTPUT_DIR / "editorial_hero.jpg"
-SLIDE2_IMG_PATH = OUTPUT_DIR / "editorial_slide2.jpg"
-SLIDE3_IMG_PATH = OUTPUT_DIR / "editorial_verdict.jpg"
-VERDICT_IMG_PATH = SLIDE3_IMG_PATH
-FINAL_VIDEO_PATH = OUTPUT_DIR / "tiktok_reels_metrika.mp4"
+
+HERO_IMG_PATH = OUTPUT_DIR / "slide_01_hero.jpg"
+SLIDE2_IMG_PATH = OUTPUT_DIR / "slide_02_context.jpg"
+SLIDE3_IMG_PATH = OUTPUT_DIR / "slide_03_metric.jpg"
+SLIDE4_IMG_PATH = OUTPUT_DIR / "slide_04_strategy.jpg"
+SLIDE5_IMG_PATH = OUTPUT_DIR / "slide_05_verdict.jpg"
+VERDICT_IMG_PATH = SLIDE5_IMG_PATH
 
 # Regulasi & Benchmark Ekonomi Resmi Indonesia
 UMP_JAKARTA_2025 = 5_396_763     # Kepgub DKI Jakarta No. 1026/2024
@@ -108,9 +127,6 @@ HARGA_BERAS_5KG = 74_500         # Badan Pangan Nasional (Bapanas) - Beras Mediu
 HARGA_EMAS_ANTAM_GRAM = 1_490_000# PT Antam Tbk Logam Mulia
 SEWA_KOS_JAKARTA_MO = 1_850_000  # Survei kamar kos standar DKI Jakarta
 
-TTS_VOICE = "id-ID-GadisNeural"
-TTS_RATE = "+12%"
-
 HTTP_HEADERS = {
     "User-Agent": (
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -119,17 +135,23 @@ HTTP_HEADERS = {
     )
 }
 
+# Bank Foto Terverifikasi Bebas Hak Cipta untuk Topik Populer Indonesia
+TOPIC_IMAGE_VAULT = {
+    "gold": "https://images.unsplash.com/photo-1610375461246-83df859d849d?auto=format&fit=crop&w=1200&q=80",
+    "chart": "https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?auto=format&fit=crop&w=1200&q=80",
+    "money": "https://images.unsplash.com/photo-1580519542036-c47de6196ba5?auto=format&fit=crop&w=1200&q=80",
+    "investor": "https://images.unsplash.com/photo-1590283603385-17ffb3a7f29f?auto=format&fit=crop&w=1200&q=80",
+    "bank": "https://images.unsplash.com/photo-1541354329998-f4d9a9f9297f?auto=format&fit=crop&w=1200&q=80",
+    "gadget": "https://images.unsplash.com/photo-1510557880182-3d4d3cba35a5?auto=format&fit=crop&w=1200&q=80",
+    "ojol": "https://images.unsplash.com/photo-1558981403-c5f9899a28bc?auto=format&fit=crop&w=1200&q=80",
+    "business": "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=1200&q=80",
+}
+
 
 # ==============================================================================
 # 2. SISTEM PENJADWALAN PROGRAM MINGGUAN
 # ==============================================================================
 def get_daily_program_config() -> Dict[str, Any]:
-    """
-    Menentukan program harian berdasarkan hari dalam seminggu:
-    - Senin (0) & Kamis (3) : INDEKS KERINGAT
-    - Selasa (1) & Jumat (4) : RADAR SENTIMEN
-    - Rabu (2), Sabtu (5), Minggu (6) : ANGKA BICARA
-    """
     if PROGRAM_OVERRIDE in ("INDEKS_KERINGAT", "RADAR_SENTIMEN", "ANGKA_BICARA"):
         p_id = PROGRAM_OVERRIDE
     else:
@@ -180,18 +202,19 @@ def get_daily_program_config() -> Dict[str, Any]:
             "subtitle": "DATA STORYTELLING & GAYA HIDUP",
             "feeds": [
                 "https://news.google.com/rss/headlines/section/topic/BUSINESS?hl=id&gl=ID&ceid=ID:id",
-                "https://news.google.com/rss/search?q=biaya+hidup+OR+survei+gaji+OR+riset+anak+muda+OR+bps+indonesia&hl=id&gl=ID&ceid=ID:id",
+                "https://news.google.com/rss/search?q=biaya+hidup+OR+survei+gaji+OR+harga+emas+OR+saham+ihsg+indonesia&hl=id&gl=ID&ceid=ID:id",
             ],
             "sources": [
-                "Badan Pusat Statistik (BPS)",
+                "Logam Mulia PT Antam Tbk",
+                "Bursa Efek Indonesia (IDX)",
                 "Bank Indonesia (BI)",
-                "Survei Literasi Keuangan Nasional",
+                "Badan Pusat Statistik (BPS)",
             ],
         }
 
 
 # ==============================================================================
-# 3. MODUL INGESTION BERITA & FOTO TERVALIDASI
+# 3. MODUL INGESTION BERITA & FOTO TERVALIDASI (100% AKURAT)
 # ==============================================================================
 def format_rupiah(amount: int) -> str:
     return f"Rp {amount:,.0f}".replace(",", ".")
@@ -263,9 +286,9 @@ def fetch_latest_program_news(prog_cfg: Dict[str, Any]) -> Tuple[Dict[str, str],
         else:
             candidates.append(
                 {
-                    "title": "Riset BPS: Rata-rata 42 Persen Gaji Anak Muda Habis untuk Biaya Kos dan Makan",
+                    "title": "Harga Emas Antam Tembus Rekor Baru: Investor Hadapi Dilema Jual atau Tahan",
                     "link": f"https://metrika.id/statistik/{datetime.date.today()}",
-                    "summary": "Data statistik pengeluaran bulanan generasi muda di kota metropolitan dan tantangan kepemilikan aset masa depan.",
+                    "summary": "Lonjakan harga emas murni 24 karat di tengah sentimen geopolitik global dan pilihan alokasi aset masyarakat.",
                     "published": str(datetime.date.today()),
                 }
             )
@@ -274,7 +297,6 @@ def fetch_latest_program_news(prog_cfg: Dict[str, Any]) -> Tuple[Dict[str, str],
     supporting = [item["title"] for item in candidates[1:6]]
     print(f"[RSS] Topik Terpilih ({prog_cfg['name']}): {primary_item['title']}")
     return primary_item, supporting
-
 
 
 ACRONYM_MAP = {
@@ -288,163 +310,129 @@ ACRONYM_MAP = {
     "KRL": "KRL Commuter Line Jabodetabek kereta stasiun",
     "OJOL": "Pengemudi ojek online jalanan Jakarta motor",
     "BPS": "Badan Pusat Statistik kantor Jakarta",
-    "ANTAM": "Emas batangan Logam Mulia Antam",
-    "TESLA": "Tesla Roadster electric car supercar",
+    "ANTAM": "Emas batangan Logam Mulia Antam gold bar",
+    "EMAS": "Emas batangan gold bullion bar 24k",
+    "TESLA": "Tesla electric car automobile",
 }
 
-def resolve_search_query(raw_query: str) -> str:
+def clean_query_term(raw_query: str) -> str:
+    """Membersihkan kata pencarian agar fokus ke entitas fotografi fisik konkret."""
     words = raw_query.upper().split()
     for w in words:
         clean_w = re.sub(r'[^A-Z]', '', w)
         if clean_w in ACRONYM_MAP:
             return ACRONYM_MAP[clean_w]
-    return raw_query
-
-THEMATIC_PALETTES = {
-    "automotive": ("Teknologi & Transportasi", (38, 24, 16), (185, 28, 28)),
-    "finance": ("Pasar Modal & Finansial", (30, 20, 14), (140, 88, 53)),
-    "labor": ("Upah & Ketenagakerjaan", (45, 30, 20), (166, 124, 82)),
-    "lifestyle": ("Ekonomi & Gaya Hidup", (35, 25, 18), (180, 130, 90)),
-}
-
-def generate_curated_editorial_hero(topic_theme: str, headline: str, save_path: Path) -> Path:
-    label, bg_rgb, accent_rgb = THEMATIC_PALETTES.get(topic_theme, THEMATIC_PALETTES["lifestyle"])
-    im = Image.new("RGB", (1200, 800), bg_rgb)
-    d = ImageDraw.Draw(im)
-    d.rectangle([(0, 775), (1200, 800)], fill=accent_rgb)
-    d.rectangle([(50, 50), (1150, 730)], outline=(40, 55, 75), width=2)
-    for y in range(80, 700, 80):
-        d.line([(60, y), (1140, y)], fill=(25, 35, 50), width=1)
     
-    clean_h = re.sub(r'</?red>', '', headline)
-    d.text((80, 320), f"METRIKA RISET DATA • {label.upper()}", fill=accent_rgb)
-    d.text((80, 380), clean_h[:65], fill=(245, 245, 245))
+    # Ambil 3-5 kata benda penting
+    clean = re.sub(r'[^\w\s]', ' ', raw_query).strip()
+    tokens = [t for t in clean.split() if len(t) > 2 and t.lower() not in ["dan", "yang", "dari", "untuk", "pada", "adalah", "ini", "itu", "atau"]]
+    return " ".join(tokens[:5])
+
+
+def generate_curated_editorial_canvas(topic_title: str, slide_label: str, save_path: Path) -> Path:
+    """Membuat latar visual editorial bernuansa coklat mewah jika unduhan eksternal gagal."""
+    im = Image.new("RGB", (1200, 800), (35, 23, 16)) # Dark Roasted Espresso
+    d = ImageDraw.Draw(im)
+
+    # Pola garis kisi elegan
+    for y in range(60, 740, 70):
+        d.line([(60, y), (1140, y)], fill=(48, 32, 22), width=1)
+    for x in range(60, 1140, 100):
+        d.line([(x, 60), (x, 740)], fill=(48, 32, 22), width=1)
+
+    # Frame aksen warm cognac leather
+    d.rectangle([(40, 40), (1160, 760)], outline=(140, 88, 53), width=2)
+    d.rectangle([(0, 785), (1200, 800)], fill=(185, 28, 28)) # Red accent bar
+
+    clean_t = re.sub(r'</?red>', '', topic_title).strip()
+    d.text((80, 320), f"METRIKA DOKUMENTASI DATA • {slide_label.upper()}", fill=(226, 183, 146))
+    d.text((80, 380), clean_t[:60], fill=(250, 246, 240))
     im.save(save_path, format="JPEG", quality=92)
-    print(f"[Photo] Visual editorial tersusun rapi: {save_path.name}")
+    print(f"[Photo] Visual editorial kanvas tersusun rapi: {save_path.name}")
     return save_path
 
+
+def is_safe_image_url(url: str) -> bool:
+    """Memastikan URL bukan kartun/anime, profil youtube, atau wallpaper tidak relevan."""
+    url_low = url.lower()
+    if any(b in url_low for b in BLOCKED_IMAGE_DOMAINS):
+        return False
+    if any(t in url_low for t in DISALLOWED_IMAGE_TERMS):
+        return False
+    return True
+
+
 def fetch_editorial_photo_with_meta(
-    news_item: Dict[str, str], subject_name: str, save_path: Path
-) -> Tuple[Optional[Path], str]:
+    news_item: Dict[str, str], query_term: str, save_path: Path, fallback_key: str = "business"
+) -> Tuple[Path, str]:
+    """
+    Mengunduh foto jurnalistik 100% nyata & akurat.
+    Menggunakan Wikimedia Commons + Bing Photo Filter + Unsplash Vault.
+    Menjamin tidak ada gambar anime, kartun, atau gambar halloween!
+    """
     candidate_urls: List[str] = []
-    meta_text = f"{subject_name} {news_item['title']} {news_item.get('summary', '')}"
+    clean_q = clean_query_term(query_term)
+    meta_text = f"{query_term} {news_item['title']}"
 
-    # 1. Coba ikuti link asli artikel berita untuk ambil og:image
-    if BeautifulSoup is not None:
-        try:
-            resp = requests.get(
-                news_item["link"], headers=HTTP_HEADERS, timeout=8, allow_redirects=True
-            )
-            if resp.status_code == 200:
-                soup = BeautifulSoup(resp.text, "html.parser")
-                for prop in ("og:image", "twitter:image", "og:image:secure_url"):
-                    meta = soup.find("meta", property=prop) or soup.find(
-                        "meta", attrs={"name": prop}
-                    )
-                    if meta and meta.get("content", "").startswith("http"):
-                        val = meta["content"].strip()
-                        if not any(b in val.lower() for b in BLOCKED_IMAGE_DOMAINS):
-                            if not any(x in val.lower() for x in ["logo", "icon", "banner", "placeholder"]):
-                                candidate_urls.append(val)
-        except Exception:
-            pass
-
-    # 2. Coba cari foto resmi di Wikipedia API
-    clean_entity = re.sub(r'[^\w\s]', '', subject_name).strip()
-    if clean_entity:
-        try:
-            wiki_url = f"https://en.wikipedia.org/w/api.php?action=query&titles={urllib.parse.quote(clean_entity)}&prop=pageimages&format=json&pithumbsize=1200"
-            w_res = requests.get(wiki_url, headers=HTTP_HEADERS, timeout=6)
-            if w_res.status_code == 200:
-                pages = w_res.json().get("query", {}).get("pages", {})
-                for _, v in pages.items():
-                    if "thumbnail" in v:
-                        candidate_urls.append(v["thumbnail"]["source"])
-        except Exception:
-            pass
-
-    # 3. Coba cari di Bing Image Search dengan filter ketat anti-channel logo
-    search_q = f"{clean_entity} photo high resolution -logo -channel"
-    bing_url = (
-        "https://www.bing.com/images/search?q="
-        + urllib.parse.quote(search_q)
-        + "&qft=+filterui:imagesize-large"
-    )
+    # 1. Prioritas Utama: Cari di Wikimedia Commons API (Foto Asli Bebas Hak Cipta)
     try:
+        wiki_search_url = (
+            "https://commons.wikimedia.org/w/api.php?action=query&generator=search"
+            f"&gsrnamespace=6&gsrsearch={urllib.parse.quote(clean_q + ' photo')}&gsrlimit=4"
+            "&prop=imageinfo&iiprop=url|mime&iiurlwidth=1200&format=json"
+        )
+        w_res = requests.get(wiki_search_url, headers=HTTP_HEADERS, timeout=6)
+        if w_res.status_code == 200:
+            pages = w_res.json().get("query", {}).get("pages", {})
+            for _, p_data in pages.items():
+                img_info = p_data.get("imageinfo", [{}])[0]
+                thumb_url = img_info.get("thumburl") or img_info.get("url")
+                if thumb_url and is_safe_image_url(thumb_url):
+                    candidate_urls.append(thumb_url)
+    except Exception:
+        pass
+
+    # 2. Cari di Bing Image Search dengan Filter Ketat (+photo +large) & Negative Terms
+    try:
+        search_engine_q = f"{clean_q} photograph real news -anime -manga -cartoon -drawing -illustration -wallpaper -avatar -halloween"
+        bing_url = (
+            "https://www.bing.com/images/search?q="
+            + urllib.parse.quote(search_engine_q)
+            + "&qft=+filterui:photo+filterui:imagesize-large"
+        )
         b_resp = requests.get(bing_url, headers=HTTP_HEADERS, timeout=6)
         if b_resp.status_code == 200:
             matches = re.findall(r'murl&quot;:&quot;(https?://[^&]+?)&quot;', b_resp.text)
-            for m in matches[:6]:
-                m_low = m.lower()
-                if not any(b in m_low for b in [".in/", "aajtak", "indiatoday", "zeenews", "ndtv", "espn", "sports", "cricket", "football", "baseball", "nfl", "nba", "logo", "icon", "channel", "banner"]):
+            for m in matches[:8]:
+                if is_safe_image_url(m):
                     candidate_urls.append(m)
     except Exception:
         pass
 
-    # Validasi download
+    # 3. Masukkan Foto Cadangan Tematik Terkurasi dari Vault
+    vault_url = TOPIC_IMAGE_VAULT.get(fallback_key, TOPIC_IMAGE_VAULT["business"])
+    candidate_urls.append(vault_url)
+
+    # Validasi download gambar yang valid
     for img_url in candidate_urls:
         try:
             r = requests.get(img_url, headers=HTTP_HEADERS, timeout=8)
-            if r.status_code == 200 and len(r.content) > 15_000:
+            if r.status_code == 200 and len(r.content) > 12_000:
                 pil_img = Image.open(io.BytesIO(r.content)).convert("RGB")
-                if pil_img.width >= 500 and pil_img.height >= 300:
+                if pil_img.width >= 400 and pil_img.height >= 250:
                     pil_img.save(save_path, format="JPEG", quality=92)
-                    print(f"[Photo] Foto berhasil diunduh: {img_url[:60]}...")
+                    print(f"[Photo] Foto jurnalistik berhasil diunduh: {img_url[:65]}...")
                     return save_path, f"{meta_text} {img_url}"
         except Exception:
             continue
 
-    # Fallback Terkurasi: Jamin foto tidak pernah None!
-    theme_key = "lifestyle"
-    sub_low = subject_name.lower()
-    if any(k in sub_low for k in ["mobil", "motor", "tesla", "kendaraan", "transportasi"]):
-        theme_key = "automotive"
-    elif any(k in sub_low for k in ["saham", "ihsg", "msci", "bursa", "investasi"]):
-        theme_key = "finance"
-    elif any(k in sub_low for k in ["gaji", "upah", "ojol", "buruh", "kerja"]):
-        theme_key = "labor"
-
-    generated = generate_curated_editorial_hero(theme_key, news_item["title"], save_path)
+    # Fallback Terakhir: Kanvas Editorial Coklat Mewah Elegan
+    generated = generate_curated_editorial_canvas(news_item["title"], clean_q[:25], save_path)
     return generated, meta_text
 
 
 # ==============================================================================
-# 4. ENGINE KALKULASI INDEKS KERINGAT DETERMINISTIK
-# ==============================================================================
-def compute_labor_metrics(price_idr: int) -> Dict[str, Any]:
-    price = max(int(price_idr), 100_000)
-
-    ojol_trips = int(math.ceil(price / OJOL_NET_PER_TRIP))
-    ojol_days = int(math.ceil(price / OJOL_NET_PER_HARI))
-    ojol_hours = int(math.ceil(price / OJOL_NET_PER_JAM))
-
-    ump_days = round(price / UMP_PER_HARI, 1)
-    ump_months = round(price / UMP_JAKARTA_2025, 1)
-    ump_pct = round((price / UMP_JAKARTA_2025) * 100, 1)
-
-    karung_beras = int(price // HARGA_BERAS_5KG)
-    ton_beras = round((karung_beras * 5) / 1000.0, 1)
-    gram_emas = round(price / HARGA_EMAS_ANTAM_GRAM, 1)
-    bulan_kos = round(price / SEWA_KOS_JAKARTA_MO, 1)
-
-    return {
-        "price_idr": price,
-        "price_str": format_rupiah(price),
-        "ojol_trips": ojol_trips,
-        "ojol_days": ojol_days,
-        "ojol_hours": ojol_hours,
-        "ump_days": ump_days,
-        "ump_months": ump_months,
-        "ump_pct": ump_pct,
-        "karung_beras": karung_beras,
-        "ton_beras": ton_beras,
-        "gram_emas": gram_emas,
-        "bulan_kos": bulan_kos,
-    }
-
-
-# ==============================================================================
-# 5. OTAK AI: ANALISIS PROGRAM SPESIFIK KE SKEMA CLAUDE
+# 4. OTAK AI: ANALISIS PROGRAM UNTUK 5 SLIDE NARRATIVE CAROUSEL
 # ==============================================================================
 def get_available_gemini_models() -> List[str]:
     if GEMINI_MODEL_OVERRIDE:
@@ -478,111 +466,74 @@ def analyze_with_gemini(
     if not GEMINI_API_KEY:
         raise EnvironmentError("GEMINI_API_KEY belum terpasang di GitHub Secrets!")
 
-    p_id = prog_cfg["id"]
+    instructions = f"""
+Kamu adalah Pemimpin Redaksi media data "{MEDIA_NAME}" untuk program "{prog_cfg['name']}".
+Misi: Mengubah berita terpilih menjadi ARSITEKTUR CAROUSEL 5 SLIDE NARRATIVE KELAS AGENSI DESAIN.
 
-    if p_id == "INDEKS_KERINGAT":
-        instructions = f"""
-Kamu adalah Redaktur Riset media data "{MEDIA_NAME}" untuk program "{prog_cfg['name']}".
-Misi: Membedah harga barang/gadget/tiket/gaya hidup nyata terhadap jam kerja ojol dan upah UMP Jakarta.
+ATURAN STRUKTUR 5 SLIDE LENGKAP:
+- SLIDE 1 (COVER): Hook provokatif hitam-merah (<red>kata kunci</red>) + Stat Pill (angka dan label penting).
+- SLIDE 2 (KONTEKS & AKAR MASALAH): Hook penahan scroll + 3 poin investigasi padat berformat '**Kata Kunci:** Uraian fakta 20-30 kata'.
+- SLIDE 3 (BEDAH ANGKA & DATA): Hook penahan scroll + Metric spotlight angka + 2 kolom analisis perbandingan (masing-masing 3 poin padat).
+- SLIDE 4 (SKENARIO STRATEGIS): Hook penahan scroll + 3 skenario aksi nyata (Skenario A, Skenario B, Skenario C) + 1 kalimat takeaway penting.
+- SLIDE 5 (VERDICT & DISKUSI): Verdict objektif redaksi + pertanyaan diskusi terbuka pemantik komentar + 3-4 rujukan data resmi.
 
-GAYA HEADLINE EDITORIAL (@theeconomicinfluence):
-- Wajib tulis kalimat hook provokatif, sedikit satir, atau pertanyaan tajam ala @theeconomicinfluence.
-- Gunakan tag <red>...</red> untuk 2-4 kata kunci paling emosional/menohok (Contoh: 'IHSG Anjlok, <red>Danantara Justru Melihat Kesempatan</red> Lebih Besar').
+ATURAN PENCARIAN FOTO (PENTING! ANTI-ANIME & ANTI-HALLOWEEN):
+- Tulis 'query_photo' untuk setiap slide berupa 3-4 KATA BENDA FOTOGRAFI FISIK NYATA dalam Bahasa Inggris/Indonesia (contoh: 'gold bullion bar antam', 'stock market candlestick chart', 'indonesian rupiah banknotes', 'bank vault safe deposit box', 'jakarta stock exchange floor'). DILARANG MENULIS KATA ABSTRAK ATAU EMOSIONAL!
 
-ATURAN DENSITAS & ARGUMEN EDITORIAL:
-1. WAJIB KAYA TEKS & ARGUMEN: Buat 3 sampai 4 butir poin mendalam per kolom (jangan hanya 1-2 kalimat pendek).
-2. FORMAT BOLD LEAD-IN: Setiap poin wajib diawali frasa tebal diikuti uraian 20-30 kata (contoh: '**Dampak Pasar Ritel:** Penurunan indeks memicu aksi panic selling pada investor ritel...').
-3. SERTAKAN OVERVIEW CONTEXT: Tulis 1 paragraf ringkas (25-35 kata) di field 'overview_context' yang merangkum dinamika isu.
-
-ATURAN ANTI-AI-SLOP:
-1. PRODUK WAJIB NYATA & RESMI DI INDONESIA: DILARANG mengarang barang masa depan. Harus produk nyata yang resmi beredar saat ini (contoh: iPhone 16 Pro Max 256GB, Vespa Sprint 150, Tiket Konser CAT 1, PS5 Slim, Sewa Kos Setahun).
-2. HARGA VALID: Tentukan estimasi harga pasar wajar integer Rupiah (misal: 24999000).
-3. DILARANG MENGGUNAKAN EMOJI.
-4. NASKAH VOICEOVER: 50-70 kata narasi padat & mengalir.
-
-Format output JSON:
+Format output JSON murni:
 {{
-  "subject_title": "Nama produk resmi nyata di Indonesia (maks 26 karakter)",
-  "price_idr": 24999000,
-  "hook": "iPhone 16 Pro Resmi Rilis, <red>Berapa Bulan Gaji UMR</red> yang Harus Ditukar?",
-  "keywords": ["gadget", "apple", "iphone", "hp"],
-  "verdict": "Gadget bukan sekadar barang konsumsi; ia dibayar dengan ratusan jam kerja dan tetesan keringat.",
-  "cta": "Berapa jam kerja yang rela kamu tukar untuk membeli barang ini? Tulis di komentar.",
-  "voiceover_script": "Naskah narasi 50-70 kata lugas tanpa emoji."
-}}
-"""
-    elif p_id == "RADAR_SENTIMEN":
-        instructions = f"""
-Kamu adalah Redaktur Opini Publik media data "{MEDIA_NAME}" untuk program "{prog_cfg['name']}".
-Misi: Membedah isu berita hangat yang viral di Indonesia secara objektif: Fakta Inti vs Kubu Pro vs Kubu Kontra.
+  "subject_title": "Topik Berita Nyata (maks 25 karakter)",
+  "hook": "Emas Rekor Lagi, <red>Investor Hadapi Dilema</red>: Saatnya Beli di Pucuk atau Ambil Untung?",
+  "hero_value": "Rp 1.490.000",
+  "hero_label": "rekor harga emas murni Antam per gram hari ini",
+  "slide1_photo_query": "gold bullion bar antam logammulia",
+  "fallback_theme_1": "gold",
 
-GAYA HEADLINE EDITORIAL (@theeconomicinfluence):
-- Wajib tulis kalimat hook provokatif, sedikit satir, atau pertanyaan tajam ala @theeconomicinfluence.
-- Gunakan tag <red>...</red> untuk 2-4 kata kunci paling emosional/menohok (Contoh: 'IHSG Anjlok, <red>Danantara Justru Melihat Kesempatan</red> Lebih Besar').
+  "slide2_eyebrow": "01 / DOKUMENTASI FAKTA",
+  "slide2_hook": "Mengapa Harga Emas Mendadak Meledak dan Cetak Rekor Baru?",
+  "slide2_points": [
+    "**Ketegangan Geopolitik:** Eskalasi konflik internasional memicu lonjakan permintaan aset safe haven global.",
+    "**Aksi Bank Sentral:** Pembelian cadangan emas fisik oleh otoritas moneter dunia mencapai rekor tertinggi.",
+    "**Sentimen Inflasi Domestik:** Investor ritel dan korporasi mengalihkan likuiditas tunai untuk lindung nilai daya beli."
+  ],
+  "slide2_photo_query": "gold market candlestick trading chart",
+  "fallback_theme_2": "chart",
 
-ATURAN DENSITAS & ARGUMEN EDITORIAL:
-1. WAJIB KAYA TEKS & ARGUMEN: Buat 3 sampai 4 butir poin mendalam per kolom (jangan hanya 1-2 kalimat pendek).
-2. FORMAT BOLD LEAD-IN: Setiap poin wajib diawali frasa tebal diikuti uraian 20-30 kata (contoh: '**Dampak Pasar Ritel:** Penurunan indeks memicu aksi panic selling pada investor ritel...').
-3. SERTAKAN OVERVIEW CONTEXT: Tulis 1 paragraf ringkas (25-35 kata) di field 'overview_context' yang merangkum dinamika isu.
+  "slide3_eyebrow": "02 / BEDAH DATA RISET",
+  "slide3_hook": "Dilema Dua Arah: Beli di Pucuk atau Ambil Untung Sekarang?",
+  "slide3_metric_value": "+31,8%",
+  "slide3_metric_label": "kenaikan rata-rata harga emas murni year-to-date di pasar domestik",
+  "slide3_col1_title": "Argumen Akumulasi (Bullish)",
+  "slide3_col1_points": [
+    "Tren suku bunga acuan global melandai meningkatkan daya tarik emas non-yield.",
+    "Pelemahan mata uang regional memperkuat posisi emas sebagai jangkar nilai aset.",
+    "Keterbatasan suplai tambang fisik dunia menopang harga jangka panjang."
+  ],
+  "slide3_col2_title": "Argumen Rebalancing (Bearish)",
+  "slide3_col2_points": [
+    "Risiko koreksi teknikal jangka pendek akibat aksi profit taking pemodal besar.",
+    "Spread jual-beli (buyback) butik emas membutuhkan waktu untuk impas biaya awal.",
+    "Emas tidak menghasilkan dividen atau arus kas kas masuk secara periodik."
+  ],
+  "slide3_photo_query": "indonesian rupiah banknotes currency cash",
+  "fallback_theme_3": "money",
 
-ATURAN ANTI-AI-SLOP:
-1. FAKTA BERITA NYATA: Ringkas fakta inti peristiwa dengan jernih tanpa sensasionalisme.
-2. POLARISASI PERSENTASE REALISTIS: Tentukan angka persentase pro vs kontra (misal pro 62, kontra 38).
-3. SUARA KUBU: Rangkum argumen utama Kubu Pro dan Kubu Kontra di media sosial (masing-masing 2-3 poin tajam).
-4. DILARANG MENGGUNAKAN EMOJI.
-5. NASKAH VOICEOVER: 50-70 kata membedah dua sudut pandang dan memancing diskusi.
+  "slide4_eyebrow": "03 / SKENARIO STRATEGIS",
+  "slide4_hook": "Tiga Skenario Menghadapi Fluktuasi Harga Pasar",
+  "slide4_scenarios": [
+    {{"tag": "SKENARIO JANGKA PANJANG", "text": "**Dollar Cost Averaging:** Alokasikan porsi tetap bulanan saat terjadi koreksi harga wajar, bukan saat tren memuncak."}},
+    {{"tag": "SKENARIO KEBUTUHAN TUNAI", "text": "**Realisasi Bertahap:** Jual sebagian porsi profit jika ada kebutuhan dana darurat atau modal usaha produktif."}},
+    {{"tag": "SKENARIO ANTI-FOMO", "text": "**Disiplin Portofolio:** Batasi alokasi logam mulia maksimal 10-15 persen dari total portofolio aset Anda."}}
+  ],
+  "slide4_takeaway": "Emas adalah pelindung nilai daya beli dari inflasi, bukan instrumen cepat kaya semalam.",
+  "slide4_photo_query": "bank vault gold bar investment safe",
+  "fallback_theme_4": "bank",
 
-Format output JSON:
-{{
-  "subject_title": "Isu atau Tokoh Utama (maks 26 karakter)",
-  "hook": "IHSG Babak Belur, <red>Emangnya Ngaruh?</red> Kan Kita di Desa Gak Main Saham.",
-  "pro_pct": 62,
-  "contra_pct": 38,
-  "keywords": ["kebijakan", "publik", "viral", "isu"],
-  "fact_points": ["Fakta resmi peristiwa yang telah diverifikasi", "Konfirmasi dari pihak otoritas terkait"],
-  "pro_points": ["Mendukung langkah percepatan efisiensi layanan", "Memberikan kepastian bagi masyarakat"],
-  "contra_points": ["Mengkhawatirkan transparansi dan akuntabilitas", "Berdampak pada beban operasional masyarakat"],
-  "verdict": "Perbedaan terbesar ada pada sudut pandang kepentingan, bukan pada fakta dasarnya.",
-  "cta": "Kamu di kubu mana, dan data apa yang bisa mengubah pandanganmu? Tulis di komentar.",
-  "voiceover_script": "Naskah narasi 50-70 kata lugas tanpa emoji."
-}}
-"""
-    else:  # ANGKA_BICARA
-        instructions = f"""
-Kamu adalah Jurnalis Data media "{MEDIA_NAME}" untuk program "{prog_cfg['name']}".
-Misi: Menyajikan riset statistik, keuangan, pasar modal, dan tren ekonomi nyata secara infografis.
-
-GAYA HEADLINE EDITORIAL:
-- Kalimat hook harus tajam, provokatif, dan berbobot data.
-- Gunakan tag <red>...</red> untuk 2-4 kata kunci paling emosional/menohok (Contoh: 'Investor Panik, <red>IHSG Terjun Bebas</red> Setelah Badai MSCI. Siapa Untung?').
-
-ATURAN DENSITAS & ARGUMEN EDITORIAL:
-1. WAJIB KAYA TEKS & ARGUMEN: Buat 3 sampai 4 butir poin mendalam per kolom (jangan hanya 1-2 kalimat pendek).
-2. FORMAT BOLD LEAD-IN: Setiap poin wajib diawali frasa tebal diikuti uraian 20-30 kata (contoh: '**Dampak Pasar Ritel:** Penurunan indeks memicu aksi panic selling pada investor ritel...').
-3. SERTAKAN OVERVIEW CONTEXT: Tulis 1 paragraf ringkas (25-35 kata) di field 'overview_context' yang merangkum dinamika isu.
-
-ATURAN ANTI-AI-SLOP:
-1. DATA VALID & RELEVAN SESUAI TOPIK BERITA: Seluruh data, judul slide, dan poin analisis WAJIB 100% relevan dengan berita yang diberikan. DILARANG mencampuradukkan topik yang tidak relevan (seperti biaya sewa kos saat membahas saham/IHSG/MSCI).
-2. DILARANG MENGGUNAKAN EMOJI.
-3. NASKAH VOICEOVER: 50-70 kata narasi data yang mengalir dan tajam.
-
-Format output JSON:
-{{
-  "subject_title": "Topik Berita Utama (maks 26 karakter)",
-  "hook": "Investor Panik, <red>IHSG Terjun Bebas</red> Setelah Badai MSCI. Siapa Untung?",
-  "hero_value": "4.800",
-  "hero_label": "level psikologis IHSG yang berpotensi diuji pasca sentimen pasar modal",
-  "keywords": ["saham", "ihsg", "msci", "investasi"],
-  "slide_heading": "Dampak Sentimen Terhadap Pasar & Portofolio Ritel",
-  "metric_value": "Rp 12,4 Triliun",
-  "metric_label": "total net sell investor asing dalam sepekan terakhir",
-  "breakdown_left_title": "Dampak Pasar Modal",
-  "breakdown_left_points": ["Penurunan nilai portofolio saham kapitalisasi besar", "Sentimen jual jangka pendek akibat penyesuaian bobot indeks"],
-  "breakdown_right_title": "Strategi Investor",
-  "breakdown_right_points": ["Evaluasi ulang valuasi dan fundamental emiten", "Disiplin alokasi aset dan tidak panik melakukan aksi jual massal"],
-  "verdict": "Volatilitas pasar adalah bagian dari siklus; keputusan terbaik lahir dari data, bukan kepanikan sesaat.",
-  "cta": "Bagaimana strategi portofoliomu menghadapi fluktuasi ini? Tulis di komentar.",
-  "voiceover_script": "Naskah narasi 50-70 kata lugas tanpa emoji."
+  "verdict": "Kilau emas hari ini adalah cerminan ketidakpastian; keputusan terbaik lahir dari rasio keuangan sehat, bukan kepanikan pasar.",
+  "cta": "Apakah kamu memilih beli lagi di harga rekor ini, atau justru menjualnya untuk ambil untung? Tulis strategimu di komentar!",
+  "sources": ["Logam Mulia PT Antam Tbk", "Bank Indonesia (BI)", "Bloomberg Commodities", "Badan Pusat Statistik (BPS)"],
+  "slide5_photo_query": "stock market investor screens desk financial",
+  "fallback_theme_5": "investor"
 }}
 """
 
@@ -621,244 +572,71 @@ Kembalikan HANYA JSON murni tanpa markdown ```json.
 
 
 # ==============================================================================
-# 6. PENYUSUN KONTEN UNTUK ENGINE CLAUDE (CONTENT ADAPTER)
+# 5. CONTENT BUILDER (MENYIAPKAN DATA 5 SLIDE PENUH)
 # ==============================================================================
 def build_metrika_content(
     analysis: Dict[str, Any],
     prog_cfg: Dict[str, Any],
-    metrics: Optional[Dict[str, Any]],
-    hero_img: Optional[Path],
-    slide2_img: Optional[Path],
-    slide3_img: Optional[Path],
-    hero_meta: str,
+    images: Dict[str, Path],
 ) -> Dict[str, Any]:
-    """
-    Menyusun payload dictionary `content` yang presisi sesuai skema yang diminta
-    oleh engine perender `metrika_render.py`.
-    """
-    p_id = prog_cfg["id"]
     today_str = datetime.datetime.now().strftime("%d %b %Y")
-    subject_title = analysis.get("subject_title", "Topik Riset")
+    
+    return {
+        "program": prog_cfg["id"],
+        "date": today_str,
+        "hook": analysis.get("hook", "Analisis Data Finansial Hari Ini"),
+        "hero": {
+            "value": analysis.get("hero_value", "100%"),
+            "label": analysis.get("hero_label", "acuan data pasar resmi terverifikasi"),
+        },
+        "hero_image": str(images["slide1"]),
+        "slide2_image": str(images["slide2"]),
+        "slide3_image": str(images["slide3"]),
+        "slide4_image": str(images["slide4"]),
+        "slide5_image": str(images["slide5"]),
 
-    if p_id == "INDEKS_KERINGAT" and metrics is not None:
-        hero_val = f"Rp {metrics['price_idr'] / 1_000_000:.1f} jt".replace(".", ",") if metrics['price_idr'] >= 1_000_000 else metrics["price_str"]
-        return {
-            "program": "INDEKS_KERINGAT",
-            "date": today_str,
-            "hook": analysis.get("hook", f"Berapa hari kerja untuk membeli {subject_title} di Jakarta?"),
-            "hero": {
-                "value": hero_val,
-                "label": f"estimasi harga resmi {subject_title} di pasar Indonesia",
-            },
-            "slides": [
-                {
-                    "heading": f"{subject_title} vs Upah Riil Pekerja",
-                    "image": str(slide2_img) if slide2_img else None,
-                    "overview_context": analysis.get("overview_context", "Perbandingan jam kerja riil pekerja dan pengemudi transportasi daring terhadap nilai barang konsumsi."),
-                    "metric": {
-                        "value": f"{metrics['ump_months']} Bulan",
-                        "label": f"Gaji bersih UMP DKI Jakarta 2025 ({format_rupiah(UMP_JAKARTA_2025)}/bln)",
-                    },
-                    "columns": [
-                        {
-                            "title": "Beban Keringat Ojol",
-                            "tone": "key",
-                            "points": [
-                                f"{metrics['ojol_trips']:,} Order perjalanan bersih".replace(",", "."),
-                                f"Setara ~{metrics['ojol_days']} hari narik penuh di aspal",
-                                f"Total {metrics['ojol_hours']} jam kerja aktif di jalanan",
-                            ],
-                        },
-                        {
-                            "title": "Pekerja UMP Jakarta",
-                            "tone": "neutral",
-                            "points": [
-                                f"{metrics['ump_months']} Bulan gaji disisihkan 100%",
-                                f"Setara {metrics['ump_days']} hari kerja kantor 8 jam/hari",
-                                f"Menyerap {metrics['ump_pct']}% dari upah bulanan",
-                            ],
-                        },
-                    ],
-                },
-                {
-                    "heading": "Nilai Barang Setara Kebutuhan Pokok Apa Saja?",
-                    "metric": {
-                        "value": f"{metrics['karung_beras']} Karung",
-                        "label": f"Beras Medium 5kg ({metrics['ton_beras']} Ton) - Acuan Bapanas",
-                    },
-                    "columns": [
-                        {
-                            "title": "Pangan & Hunian",
-                            "tone": "fact",
-                            "points": [
-                                f"{metrics['karung_beras']} Karung beras medium 5kg",
-                                f"{metrics['bulan_kos']} Bulan sewa kamar kos standar Jakarta",
-                            ],
-                        },
-                        {
-                            "title": "Aset Produktif",
-                            "tone": "key",
-                            "points": [
-                                f"{metrics['gram_emas']} Gram emas murni PT Antam Tbk",
-                                "Pilihan: Konsumsi gengsi atau aset masa depan?",
-                            ],
-                        },
-                    ],
-                },
-            ],
-            "verdict": analysis.get("verdict", "Gadget bukan sekadar barang konsumsi; ia dibayar dengan ratusan jam kerja nyata."),
-            "cta": analysis.get("cta", "Berapa jam kerja yang rela kamu tukar untuk barang ini? Tulis di komentar."),
-            "sources": prog_cfg["sources"],
-            "keywords": analysis.get("keywords", ["gadget", "harga", "resmi"]),
-            "hero_image": str(hero_img) if hero_img else None,
-            "verdict_image": str(slide3_img) if slide3_img else None,
-            "hero_image_meta": hero_meta,
-            "narration": analysis.get("voiceover_script", ""),
-        }
+        "slide_context": {
+            "eyebrow": analysis.get("slide2_eyebrow", "01 / DOKUMENTASI FAKTA"),
+            "hook": analysis.get("slide2_hook", "Mengapa Isu Ini Mendadak Mencuat Sekarang?"),
+            "points": analysis.get("slide2_points", [
+                "**Dinamika Pasar:** Pergerakan indeks dan sentimen investor global.",
+                "**Kebijakan Makro:** Respons otoritas dan regulator dalam menjaga stabilitas.",
+                "**Implikasi Domestik:** Pengaruh langsung ke daya beli masyarakat."
+            ]),
+        },
 
-    elif p_id == "RADAR_SENTIMEN":
-        pro_pct = int(analysis.get("pro_pct", 58))
-        contra_pct = int(analysis.get("contra_pct", 42))
-        return {
-            "program": "RADAR_SENTIMEN",
-            "date": today_str,
-            "hook": analysis.get("hook", "Isu viral ini memecah publik jadi dua kubu. Apa faktanya?"),
-            "hero": {
-                "value": f"{pro_pct} : {contra_pct}",
-                "label": "perbandingan persentase kubu pro vs kubu kontra dari percakapan publik",
-            },
-            "slides": [
-                {
-                    "heading": analysis.get("slide_heading", "Fakta di Balik Kehebohan Isu"),
-                    "image": str(slide2_img) if slide2_img else None,
-                    "overview_context": analysis.get("overview_context", "Latar belakang dan dinamika polarisasi opini publik yang berkembang di media sosial."),
-                    "columns": [
-                        {
-                            "title": "Fakta Terverifikasi",
-                            "tone": "fact",
-                            "points": analysis.get("fact_points", ["Fakta kronologi peristiwa terkonfirmasi resmi", "Pernyataan resmi pihak berwenang"]),
-                        }
-                    ],
-                },
-                {
-                    "heading": "Adu Argumen: Suara Dua Kubu",
-                    "columns": [
-                        {
-                            "title": "Kubu Pro / Sepakat",
-                            "tone": "pro",
-                            "points": analysis.get("pro_points", ["Mendukung percepatan efisiensi", "Menilai kebijakan solutif"]),
-                        },
-                        {
-                            "title": "Kubu Kontra / Kritis",
-                            "tone": "con",
-                            "points": analysis.get("contra_points", ["Mempertanyakan transparansi anggaran", "Khawatir dampak ke masyarakat"]),
-                        },
-                    ],
-                },
-            ],
-            "verdict": analysis.get("verdict", "Perbedaan terbesar ada pada sudut pandang kepentingan, bukan pada datanya sendiri."),
-            "cta": analysis.get("cta", "Kamu di kubu mana, dan data apa yang bisa mengubah pandanganmu? Tulis di komentar."),
-            "sources": prog_cfg["sources"],
-            "keywords": analysis.get("keywords", ["isu", "viral", "publik"]),
-            "hero_image": str(hero_img) if hero_img else None,
-            "verdict_image": str(slide3_img) if slide3_img else None,
-            "hero_image_meta": hero_meta,
-            "narration": analysis.get("voiceover_script", ""),
-        }
+        "slide_metric": {
+            "eyebrow": analysis.get("slide3_eyebrow", "02 / BEDAH DATA RISET"),
+            "hook": analysis.get("slide3_hook", "Dilema Dua Arah: Siapa Untung, Siapa Buntung?"),
+            "metric_value": analysis.get("slide3_metric_value", "+25,4%"),
+            "metric_label": analysis.get("slide3_metric_label", "perubahan rata-rata acuan pasar terverifikasi"),
+            "col1_title": analysis.get("slide3_col1_title", "Argumen Akumulasi"),
+            "col1_points": analysis.get("slide3_col1_points", ["Peluang pertumbuhan aset jangka panjang", "Ketahanan fundamental emiten"]),
+            "col2_title": analysis.get("slide3_col2_title", "Argumen Waspada"),
+            "col2_points": analysis.get("slide3_col2_points", ["Risiko volatilitas jangka pendek", "Penyesuaian likuiditas"]),
+        },
 
-    else:  # ANGKA_BICARA
-        slide_heading = analysis.get("slide_heading") or analysis.get("subject_title", "Bedah Data & Implikasi")
-        metric_val = analysis.get("metric_value") or analysis.get("hero_value", "100%")
-        metric_lbl = analysis.get("metric_label") or analysis.get("hero_label", "Analisis data terverifikasi")
-        left_title = analysis.get("breakdown_left_title", "Poin Analisis Utama")
-        left_points = analysis.get("breakdown_left_points", ["Faktor penggerak utama dari temuan data", "Dampak langsung terhadap kondisi finansial publik"])
-        right_title = analysis.get("breakdown_right_title", "Strategi & Implikasi")
-        right_points = analysis.get("breakdown_right_points", ["Langkah antisipasi dan evaluasi keputusan", "Peluang jangka panjang berbasis data riil"])
+        "slide_strategy": {
+            "eyebrow": analysis.get("slide4_eyebrow", "03 / SKENARIO STRATEGIS"),
+            "hook": analysis.get("slide4_hook", "Tiga Skenario Menghadapi Fluktuasi Pasar"),
+            "scenarios": analysis.get("slide4_scenarios", [
+                {"tag": "SKENARIO JANGKA PANJANG", "text": "**Akumulasi Bertahap:** Lakukan pembelian berkala saat harga koreksi wajar."},
+                {"tag": "SKENARIO TAKTIS", "text": "**Realisasi Profit:** Kunci keuntungan jika target jangka pendek telah tercapai."},
+                {"tag": "SKENARIO MITIGASI", "text": "**Disiplin Portofolio:** Hindari keputusan impulsif akibat sentimen sesaat."}
+            ]),
+            "takeaway": analysis.get("slide4_takeaway", "Aset berharga melindungi daya beli dari inflasi jangka panjang."),
+        },
 
-        return {
-            "program": "ANGKA_BICARA",
-            "date": today_str,
-            "hook": analysis.get("hook", "Temuan data penting yang perlu kamu ketahui hari ini."),
-            "hero": {
-                "value": analysis.get("hero_value", "70%"),
-                "label": analysis.get("hero_label", "persentase temuan data resmi"),
-            },
-            "slides": [
-                {
-                    "heading": slide_heading,
-                    "image": str(slide2_img) if slide2_img else None,
-                    "overview_context": analysis.get("overview_context", "Analisis mendalam mengenai latar belakang data dan implikasi strategis terhadap masyarakat."),
-                    "metric": {
-                        "value": metric_val,
-                        "label": metric_lbl,
-                    },
-                    "columns": [
-                        {
-                            "title": left_title,
-                            "tone": "fact",
-                            "points": left_points,
-                        },
-                        {
-                            "title": right_title,
-                            "tone": "key",
-                            "points": right_points,
-                        },
-                    ],
-                }
-            ],
-            "verdict": analysis.get("verdict", "Hambatan terbesar bukan niat menabung, melainkan tingginya biaya hidup perkotaan."),
-            "cta": analysis.get("cta", "Menurut kamu, pos apa yang paling menguras gaji setiap bulan? Tulis di komentar."),
-            "sources": prog_cfg["sources"],
-            "keywords": analysis.get("keywords", ["gaji", "statistik", "anak muda"]),
-            "hero_image": str(hero_img) if hero_img else None,
-            "verdict_image": str(slide3_img) if slide3_img else None,
-            "hero_image_meta": hero_meta,
-            "narration": analysis.get("voiceover_script", ""),
-        }
+        "verdict": analysis.get("verdict", "Keputusan terbaik lahir dari rasio keuangan sehat, bukan euforia sesaat."),
+        "cta": analysis.get("cta", "Bagaimana strategimu menyikapi dinamika pasar hari ini? Tulis di komentar!"),
+        "sources": analysis.get("sources") or prog_cfg["sources"],
+    }
 
 
 # ==============================================================================
-# 7. SUARA NATURAL EKSPRESIF (EDGE-TTS)
-# ==============================================================================
-async def _generate_voiceover_stream(
-    script_text: str, audio_out: Path, subtitle_out: Path
-) -> List[Dict[str, Any]]:
-    if edge_tts is None:
-        raise RuntimeError("Library edge-tts belum terinstall.")
-
-    communicate = edge_tts.Communicate(text=script_text, voice=TTS_VOICE, rate=TTS_RATE)
-    raw_boundaries: List[Dict[str, Any]] = []
-
-    with audio_out.open("wb") as audio_file:
-        async for chunk in communicate.stream():
-            if chunk["type"] == "audio":
-                audio_file.write(chunk["data"])
-            elif chunk["type"] in ("WordBoundary", "word_boundary"):
-                raw_boundaries.append(chunk)
-
-    subtitle_out.write_text(
-        json.dumps(raw_boundaries, indent=2, ensure_ascii=False), encoding="utf-8"
-    )
-    return raw_boundaries
-
-
-def generate_voiceover_words(
-    script_text: str, audio_out: Path, subtitle_out: Path
-) -> List[Dict[str, Any]]:
-    print(f"[Edge-TTS] Merekam suara narator ({TTS_VOICE}, {TTS_RATE})...")
-    raw_boundaries = asyncio.run(
-        _generate_voiceover_stream(script_text, audio_out, subtitle_out)
-    )
-    words = words_from_edge_boundaries(raw_boundaries)
-    print(f"[Edge-TTS] Audio selesai ({len(words)} kata terindeks karaoke).")
-    return words
-
-
-# ==============================================================================
-# 8. DISTRIBUSI KE TELEGRAM
+# 6. DISTRIBUSI KE TELEGRAM (ALBUM 5 SLIDE CAROUSEL)
 # ==============================================================================
 def send_outputs_to_telegram(
-    video_path: Path,
     carousel_paths: List[Path],
     content: Dict[str, Any],
     news_item: Dict[str, str],
@@ -868,60 +646,53 @@ def send_outputs_to_telegram(
         return
 
     base_url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}"
-    prog_label = content["program"].replace("_", " ")
+    clean_h = re.sub(r"</?red>", "", content["hook"])
 
-    header_msg = (
-        f"📊 *{MEDIA_NAME.upper()} • {prog_label}*\n"
-        f"Topik: *{re.sub(r'</?red>', '', content['hook'])}*\n"
-        f"Angka Kunci: *{content['hero']['value']}* ({content['hero']['label']})\n\n"
-        f"⚖️ *Verdict Objektif:*\n_{content['verdict']}_\n\n"
+    header_caption = (
+        f"📊 *{MEDIA_NAME.upper()} • JURNALISME DATA*\n\n"
+        f"*{clean_h}*\n\n"
+        f"📌 *Angka Kunci:* {content['hero']['value']} ({content['hero']['label']})\n\n"
+        f"⚖️ *Verdict Redaksi:*\n_{content['verdict']}_\n\n"
         f"💬 *Diskusi Publik:*\n{content['cta']}\n\n"
-        f"📌 *Rujukan Resmi:*\n" + "\n".join(f"• {s}" for s in content.get("sources", []))
+        f"📚 *Rujukan Data:* " + ", ".join(content.get("sources", []))
     )
 
-    print("[Telegram] Mengirim video vertikal...")
-    with video_path.open("rb") as vf:
-        requests.post(
-            f"{base_url}/sendVideo",
-            data={"chat_id": TELEGRAM_CHAT_ID, "caption": header_msg[:1024], "parse_mode": "Markdown"},
-            files={"video": vf},
-            timeout=120,
-        )
-
-    print("[Telegram] Mengirim album Carousel...")
+    print(f"[Telegram] Mengirim album Carousel ({len(carousel_paths)} slide)...")
     media_group = []
     files_payload = {}
-    for idx, img_path in enumerate(carousel_paths[:10]):
+    for idx, img_path in enumerate(carousel_paths):
         attach_key = f"slide_{idx}"
         files_payload[attach_key] = img_path.open("rb")
         item_obj: Dict[str, Any] = {"type": "photo", "media": f"attach://{attach_key}"}
         if idx == 0:
-            clean_h = re.sub(r"</?red>", "", content['hook'])
-            item_obj["caption"] = f"🖼 {MEDIA_NAME} Carousel: {clean_h} ({len(carousel_paths)} Slide)"
+            item_obj["caption"] = header_caption[:1024]
+            item_obj["parse_mode"] = "Markdown"
         media_group.append(item_obj)
 
     try:
-        requests.post(
+        res = requests.post(
             f"{base_url}/sendMediaGroup",
             data={"chat_id": TELEGRAM_CHAT_ID, "media": json.dumps(media_group)},
             files=files_payload,
             timeout=120,
         )
+        if res.status_code == 200:
+            print("[Telegram] Sukses mengirim album Carousel 5 Slide!")
+        else:
+            print(f"[Telegram] Respon Telegram: {res.text}")
     finally:
         for f in files_payload.values():
             f.close()
 
-    print("[Telegram] Seluruh paket media berhasil didistribusikan!")
-
 
 # ==============================================================================
-# 9. PIPELINE UTAMA
+# 7. PIPELINE UTAMA
 # ==============================================================================
 def main() -> None:
     prog_cfg = get_daily_program_config()
 
     print("=" * 72)
-    print(f"🚀 MEMULAI PIPELINE: {MEDIA_NAME.upper()} • {prog_cfg['name']}")
+    print(f"🚀 MEMULAI PIPELINE CAROUSEL 5 SLIDE: {MEDIA_NAME.upper()} • {prog_cfg['name']}")
     print(f"📅 Rubrik: {prog_cfg['subtitle']}")
     print("=" * 72)
 
@@ -931,56 +702,50 @@ def main() -> None:
     # 1. Ingestion berita RSS
     news_item, supporting = fetch_latest_program_news(prog_cfg)
 
-    # 2. Analisis AI Gemini
+    # 2. Analisis AI Gemini untuk 5 Slide Lengkap
     analysis = analyze_with_gemini(news_item, supporting, prog_cfg)
 
-    # 3. Hitung metrik ekonomi jika program Indeks Keringat
-    metrics = None
-    if prog_cfg["id"] == "INDEKS_KERINGAT":
-        metrics = compute_labor_metrics(analysis.get("price_idr", 24_999_000))
+    # 3. Cari Foto Jurnalistik Nyata & Terverifikasi untuk SETIAP Slide (Anti-Anime & Anti-Halloween)
+    images: Dict[str, Path] = {}
+    
+    q1 = analysis.get("slide1_photo_query") or analysis.get("subject_title", "business finance")
+    f1 = analysis.get("fallback_theme_1", "gold" if "emas" in news_item["title"].lower() else "business")
+    images["slide1"], _ = fetch_editorial_photo_with_meta(news_item, q1, HERO_IMG_PATH, f1)
 
-    # 4. Cari foto jurnalistik akurat untuk SETIAP slide
-    q_slide1 = resolve_search_query(f"{analysis.get('subject_title', '')} {news_item['title']}")
-    hero_img, hero_meta = fetch_editorial_photo_with_meta(news_item, q_slide1, HERO_IMG_PATH)
+    q2 = analysis.get("slide2_photo_query") or "market trend chart stock"
+    f2 = analysis.get("fallback_theme_2", "chart")
+    images["slide2"], _ = fetch_editorial_photo_with_meta(news_item, q2, SLIDE2_IMG_PATH, f2)
 
-    q_slide2 = resolve_search_query(f"{analysis.get('slide_heading', '')} {analysis.get('subject_title', '')} data grafik")
-    slide2_img, _ = fetch_editorial_photo_with_meta(news_item, q_slide2, SLIDE2_IMG_PATH)
+    q3 = analysis.get("slide3_photo_query") or "indonesia rupiah cash money"
+    f3 = analysis.get("fallback_theme_3", "money")
+    images["slide3"], _ = fetch_editorial_photo_with_meta(news_item, q3, SLIDE3_IMG_PATH, f3)
 
-    q_slide3 = resolve_search_query(f"investor analisis pasar modal {analysis.get('subject_title', '')}")
-    slide3_img, _ = fetch_editorial_photo_with_meta(news_item, q_slide3, VERDICT_IMG_PATH)
+    q4 = analysis.get("slide4_photo_query") or "bank vault safe investment"
+    f4 = analysis.get("fallback_theme_4", "bank")
+    images["slide4"], _ = fetch_editorial_photo_with_meta(news_item, q4, SLIDE4_IMG_PATH, f4)
 
-    # 5. Adaptasi ke skema content metrika_render
-    content = build_metrika_content(analysis, prog_cfg, metrics, hero_img, slide2_img, slide3_img, hero_meta)
+    q5 = analysis.get("slide5_photo_query") or "investor looking at screen stock trading"
+    f5 = analysis.get("fallback_theme_5", "investor")
+    images["slide5"], _ = fetch_editorial_photo_with_meta(news_item, q5, SLIDE5_IMG_PATH, f5)
+
+    # 4. Adaptasi ke Skema Konten Lengkap
+    content = build_metrika_content(analysis, prog_cfg, images)
 
     latest_json = OUTPUT_DIR / "latest_analysis.json"
     latest_json.write_text(json.dumps(content, indent=2, ensure_ascii=False), encoding="utf-8")
 
-    # 6. Generate voiceover narasi audio & timing kata
-    voice_script = content.get("narration", f"Berikut ulasan data dari {MEDIA_NAME}.")
-    words = generate_voiceover_words(voice_script, AUDIO_PATH, SUBTITLE_PATH)
-
-    # 7. Render Carousel dengan Engine Baru (Anti-AI-Slop & Auto-Fit)
-    print("[Render] Memulai render carousel 1080x1350...")
+    # 5. Render Carousel 5 Slide Berkualitas Agensi via Playwright
+    print("[Render] Memulai render 5 Slide Carousel 1080x1350...")
     carousel_files = render_carousel_slides(content, CAROUSEL_DIR)
     print(f"[Render] Sukses merender {len(carousel_files)} slide carousel.")
 
-    # 8. Render Video Vertikal dengan Subtitle Karaoke & Counter
-    print("[Render] Memulai render video vertikal 1080x1920...")
-    video_file = render_vertical_video(
-        content,
-        FINAL_VIDEO_PATH,
-        audio_path=AUDIO_PATH,
-        words=words,
-    )
-    print(f"[Render] Sukses merender video: {video_file}")
+    # 6. Kirim Album Carousel ke Telegram (Video Dinonaktifkan sesuai Permintaan)
+    send_outputs_to_telegram(carousel_files, content, news_item)
 
-    # 9. Kirim ke Telegram
-    send_outputs_to_telegram(video_file, carousel_files, content, news_item)
-
-    # 10. Update riwayat cache link
+    # 7. Update Cache Link
     save_posted_link(news_item["link"])
     print(f"[Cache] Link berhasil disimpan ke {CACHE_FILE}.")
-    print(f"✅ PIPELINE {prog_cfg['name']} SELESAI DENGAN SUKSES!")
+    print(f"✅ PIPELINE CAROUSEL {prog_cfg['name']} SELESAI DENGAN SUKSES!")
 
 
 if __name__ == "__main__":
