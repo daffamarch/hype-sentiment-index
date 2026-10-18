@@ -1,13 +1,16 @@
 """
-metrika_render.py  --  Modul render grafis METRIKA Kelas Agensi (HTML/CSS + Playwright + FFmpeg).
+metrika_render.py  --  Modul render grafis METRIKA bergaya @theeconomicinfluence.
 
-Menghasilkan grafis carousel Instagram (1080x1350) setara Canva/Figma/Photoshop menggunakan
-modern CSS (Glassmorphism, Ambient Glow, Google Fonts, Flexbox, Dynamic Meters) yang dirender
-secara headless menggunakan Chromium (Playwright).
-Juga menyediakan generator video vertikal (1080x1920) dengan karaoke subtitle via FFmpeg.
+Estetika Editorial Kelas Dunia:
+- Latar Putih Bersih (Clean White Editorial Canvas)
+- Tipografi Hitam Kontras Tinggi dengan Aksen Merah Provokatif (The Economic Influence Red #DC2626)
+- Foto Jurnalistik / Human Face / Meme Cutout Asli yang Mengisi 55-60% Cover Slide (Full-bleed)
+- Card Layout Bersih, Minimalis, dan Tajam untuk Slide Analisis Data
+- Rendered via Playwright (Headless Chromium) 1080x1350 px & Video Vertikal 1080x1920 px via FFmpeg.
 """
 from __future__ import annotations
 
+import base64
 import html
 import json
 import logging
@@ -22,66 +25,119 @@ from PIL import Image, ImageDraw, ImageFont
 
 log = logging.getLogger("metrika")
 
-# Dimensi Standar
+# Dimensi Standar Media Sosial
 W_IG, H_IG = 1080, 1350
 W_V, H_V = 1080, 1920
+
+# Palet Editorial The Economic Influence (TEI)
+COLOR_BG = "#FFFFFF"
+COLOR_BG_ALT = "#F8FAFC"
+COLOR_TEXT_MAIN = "#111827"    # Hitam pekat tajam
+COLOR_TEXT_MUTED = "#4B5563"   # Abu-abu gelap editorial
+COLOR_RED = "#DC2626"          # Merah Crimson Khas TEI
+COLOR_RED_BG = "#FEF2F2"       # Tint merah lembut
+COLOR_BORDER = "#E5E7EB"       # Border abu-abu tipis
+COLOR_LINE = "#D1D5DB"
 
 PROGRAMS_META = {
     "INDEKS_KERINGAT": {
         "label": "INDEKS KERINGAT",
-        "tag": "Jurnal Daya Beli & Jam Kerja",
-        "accent": "#FACC15",
-        "accent_glow": "rgba(250, 204, 21, 0.35)",
-        "tone_left": "Beban Narik Ojol",
-        "tone_right": "Pekerja UMP Jakarta",
+        "tag": "Daya Beli & Jam Kerja",
+        "badge": "KALKULASI RUPIAH",
     },
     "RADAR_SENTIMEN": {
         "label": "RADAR SENTIMEN",
-        "tag": "Peta Polarisasi Opini Publik",
-        "accent": "#38BDF8",
-        "accent_glow": "rgba(56, 189, 248, 0.35)",
-        "tone_left": "Kubu Sepakat / Pro",
-        "tone_right": "Kubu Kritis / Kontra",
+        "tag": "Polarisasi Opini Publik",
+        "badge": "PETA OPINI PUBLIK",
     },
     "ANGKA_BICARA": {
         "label": "ANGKA BICARA",
         "tag": "Data Storytelling & Gaya Hidup",
-        "accent": "#10B981",
-        "accent_glow": "rgba(16, 185, 129, 0.35)",
-        "tone_left": "Pengeluaran Esensial",
-        "tone_right": "Kapasitas Tabungan",
+        "badge": "DATA & EKONOMI",
     },
 }
 
-TONE_COLORS = {
-    "key": "#FACC15",
-    "fact": "#38BDF8",
-    "pro": "#10B981",
-    "con": "#EF4444",
-    "neutral": "#94A3B8",
-}
+
+def format_hook_html(hook_text: str) -> str:
+    """
+    Memformat judul hook ala @theeconomicinfluence:
+    Teks hitam tebal dengan frasa provokatif berwarna MERAH (#DC2626).
+    Mendukung tag <red>...</red>, **...**, atau auto-highlight cerdas.
+    """
+    clean_text = html.escape(hook_text.strip())
+    # Decode tag khusus jika ada
+    clean_text = clean_text.replace("&lt;red&gt;", "<red>").replace("&lt;/red&gt;", "</red>")
+    
+    if "<red>" in clean_text and "</red>" in clean_text:
+        return re.sub(r"<red>(.*?)</red>", r'<span class="text-red">\1</span>', clean_text)
+    
+    if "**" in clean_text:
+        return re.sub(r"\*\*(.*?)\*\*", r'<span class="text-red">\1</span>', clean_text)
+
+    # Auto-highlight: Beri warna merah pada bagian tengah atau pertanyaan inti
+    if "?" in clean_text:
+        parts = clean_text.split("?")
+        q_words = parts[0].strip().split()
+        if len(q_words) > 3:
+            # Highlight 2-3 kata terakhir sebelum tanda tanya
+            first_part = " ".join(q_words[:-3])
+            red_part = " ".join(q_words[-3:]) + "?"
+            after_part = ("?" + "?".join(parts[1:])).lstrip("?").strip()
+            return f'{first_part} <span class="text-red">{red_part}</span> {after_part}'.strip()
+        else:
+            return f'<span class="text-red">{parts[0]}?</span> {"".join(parts[1:])}'.strip()
+
+    words = clean_text.split()
+    if len(words) >= 4:
+        # Sorot frasa 2-4 kata di tengah
+        start = max(1, len(words) // 4)
+        end = min(len(words), start + max(2, len(words) // 2))
+        w_before = " ".join(words[:start])
+        w_red = " ".join(words[start:end])
+        w_after = " ".join(words[end:])
+        res = []
+        if w_before: res.append(w_before)
+        res.append(f'<span class="text-red">{w_red}</span>')
+        if w_after: res.append(w_after)
+        return " ".join(res)
+
+    return f'<span class="text-red">{clean_text}</span>'
+
+
+def get_image_data_uri(img_path: Optional[str | Path]) -> Optional[str]:
+    """Membaca foto lokal dan mengonversinya ke Base64 Data URI."""
+    if not img_path:
+        return None
+    p = Path(img_path)
+    if not p.exists() or p.stat().st_size < 1000:
+        return None
+    try:
+        mime = "image/jpeg"
+        if p.suffix.lower() == ".png":
+            mime = "image/png"
+        b64 = base64.b64encode(p.read_bytes()).decode("utf-8")
+        return f"data:{mime};base64,{b64}"
+    except Exception as err:
+        log.warning(f"Gagal encode image {img_path}: {err}")
+        return None
 
 
 # ==============================================================================
-# 1. GENERATOR HTML/CSS KELAS AGENSI
+# 1. GENERATOR HTML/CSS EDITORIAL @THEECONOMICINFLUENCE
 # ==============================================================================
-def get_base_css(accent: str, accent_glow: str) -> str:
+def get_editorial_css() -> str:
     return f"""
-@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800;900&family=Outfit:wght@700;800;900&display=swap');
 
 :root {{
-  --bg: #07090E;
-  --bg-deep: #030508;
-  --surface: rgba(20, 28, 45, 0.68);
-  --surface-solid: #121826;
-  --surface-hi: rgba(30, 42, 68, 0.85);
-  --border: rgba(255, 255, 255, 0.08);
-  --border-light: rgba(255, 255, 255, 0.16);
-  --text: #F8FAFC;
-  --text-dim: #94A3B8;
-  --text-mute: #64748B;
-  --accent: {accent};
-  --accent-glow: {accent_glow};
+  --bg: {COLOR_BG};
+  --bg-alt: {COLOR_BG_ALT};
+  --text-main: {COLOR_TEXT_MAIN};
+  --text-muted: {COLOR_TEXT_MUTED};
+  --red: {COLOR_RED};
+  --red-bg: {COLOR_RED_BG};
+  --border: {COLOR_BORDER};
+  --line: {COLOR_LINE};
 }}
 
 * {{
@@ -97,385 +153,479 @@ body {{
   overflow: hidden;
   background-color: var(--bg);
   font-family: 'Plus Jakarta Sans', -apple-system, sans-serif;
-  color: var(--text);
+  color: var(--text-main);
   position: relative;
   display: flex;
   flex-direction: column;
-  padding: 68px 60px 48px 60px;
 }}
 
-/* Ambient Glow & Grid Layer */
-.ambient-glow-1 {{
-  position: absolute;
-  top: -120px;
-  right: -80px;
-  width: 620px;
-  height: 620px;
-  border-radius: 50%;
-  background: radial-gradient(circle, var(--accent-glow) 0%, rgba(0,0,0,0) 70%);
-  filter: blur(80px);
-  z-index: 0;
-  pointer-events: none;
-}}
-.ambient-glow-2 {{
-  position: absolute;
-  bottom: -100px;
-  left: -100px;
-  width: 580px;
-  height: 580px;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(56, 189, 248, 0.12) 0%, rgba(0,0,0,0) 70%);
-  filter: blur(90px);
-  z-index: 0;
-  pointer-events: none;
-}}
-.grid-overlay {{
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background-image: 
-    linear-gradient(to right, rgba(255, 255, 255, 0.025) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
-  background-size: 40px 40px;
-  z-index: 1;
-  pointer-events: none;
+.text-red {{
+  color: var(--red) !important;
 }}
 
-.content-wrapper {{
-  position: relative;
-  z-index: 2;
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-}}
-
-/* Header Bar */
-.header-bar {{
+/* Top Brand Bar (Khas TEI) */
+.tei-brand-bar {{
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 28px;
+  padding: 40px 56px 20px 56px;
+  background-color: var(--bg);
+  z-index: 10;
 }}
-.brand-group {{
+.tei-logo-group {{
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 14px;
 }}
-.brand-logo {{
+.tei-logo-square {{
+  width: 40px;
+  height: 40px;
+  background-color: var(--red);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #FFFFFF;
+  font-family: 'Outfit', sans-serif;
+  font-size: 24px;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+}}
+.tei-brand-text {{
+  display: flex;
+  flex-direction: column;
+}}
+.tei-brand-name {{
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-size: 20px;
+  font-weight: 900;
+  letter-spacing: -0.01em;
+  color: var(--text-main);
+  line-height: 1.1;
+}}
+.tei-brand-sub {{
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--red);
+}}
+
+.tei-meta-tag {{
+  padding: 6px 14px;
+  background-color: var(--bg-alt);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-muted);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}}
+
+/* Cover Slide Specific */
+.cover-headline-container {{
+  padding: 10px 56px 24px 56px;
+  background-color: var(--bg);
+  z-index: 10;
+}}
+.cover-headline {{
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-size: 50px;
+  font-weight: 800;
+  line-height: 1.18;
+  letter-spacing: -0.02em;
+  color: var(--text-main);
+}}
+
+.stat-pill-row {{
+  margin-top: 18px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}}
+.stat-pill {{
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--red-bg);
+  border: 1.5px solid rgba(220, 38, 38, 0.25);
+  border-radius: 999px;
+  padding: 8px 22px;
+}}
+.stat-num {{
+  font-family: 'Outfit', sans-serif;
+  font-size: 24px;
+  font-weight: 900;
+  color: var(--red);
+}}
+.stat-lbl {{
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-main);
+}}
+
+.cover-photo-wrapper {{
+  flex: 1;
+  width: 100%;
+  position: relative;
+  overflow: hidden;
+  background-color: #0F172A;
+  border-top: 2px solid var(--border);
+}}
+.cover-photo {{
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 20%;
+  display: block;
+}}
+.photo-gradient-overlay {{
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 180px;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.75) 0%, transparent 100%);
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  padding: 30px 56px;
+}}
+.photo-swipe-prompt {{
+  color: #FFFFFF;
+  font-size: 17px;
+  font-weight: 700;
   display: flex;
   align-items: center;
   gap: 10px;
+  text-shadow: 0 2px 8px rgba(0,0,0,0.6);
 }}
-.logo-icon {{
+.photo-swipe-arrow {{
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   width: 32px;
   height: 32px;
-  background: var(--accent);
-  border-radius: 8px;
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
-  padding-bottom: 4px;
-  gap: 3px;
-}}
-.logo-bar {{
-  width: 3.5px;
-  background-color: var(--bg);
-  border-radius: 2px;
-}}
-.logo-bar:nth-child(1) {{ height: 10px; }}
-.logo-bar:nth-child(2) {{ height: 16px; }}
-.logo-bar:nth-child(3) {{ height: 21px; }}
-
-.logo-text {{
-  font-family: 'Outfit', sans-serif;
+  border-radius: 50%;
+  background-color: var(--red);
+  color: #FFFFFF;
   font-weight: 900;
-  font-size: 26px;
-  letter-spacing: 0.12em;
-  color: var(--text);
 }}
-.program-pill {{
+
+/* Inside Slides Specific */
+.inside-body {{
+  flex: 1;
+  padding: 20px 56px 40px 56px;
+  display: flex;
+  flex-direction: column;
+}}
+.slide-title-section {{
+  margin-bottom: 24px;
+}}
+.slide-section-badge {{
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--red);
+  margin-bottom: 8px;
+}}
+.slide-main-heading {{
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-size: 42px;
+  font-weight: 800;
+  line-height: 1.22;
+  letter-spacing: -0.015em;
+  color: var(--text-main);
+}}
+
+.metric-spotlight-card {{
+  background: var(--bg-alt);
+  border: 1px solid var(--border);
+  border-left: 6px solid var(--red);
+  border-radius: 18px;
+  padding: 24px 30px;
+  display: flex;
+  align-items: center;
+  gap: 28px;
+  margin-bottom: 24px;
+}}
+.spotlight-big-val {{
+  font-family: 'Outfit', sans-serif;
+  font-size: 48px;
+  font-weight: 900;
+  color: var(--red);
+  white-space: nowrap;
+}}
+.spotlight-vertical-line {{
+  width: 1px;
+  height: 54px;
+  background: var(--line);
+}}
+.spotlight-label-text {{
+  font-size: 19px;
+  font-weight: 700;
+  line-height: 1.35;
+  color: var(--text-main);
+}}
+
+.cards-grid-layout {{
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 20px;
+  margin-bottom: 24px;
+}}
+.cards-grid-layout.single-col {{
+  grid-template-columns: 1fr;
+}}
+.editorial-card {{
+  background: var(--bg);
+  border: 1.5px solid var(--border);
+  border-radius: 20px;
+  padding: 28px 24px;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.03);
+}}
+.card-header-pill {{
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 6px 16px;
-  border-radius: 999px;
+  padding: 6px 14px;
+  border-radius: 6px;
   font-size: 13px;
   font-weight: 800;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid var(--accent);
-  color: var(--accent);
+  margin-bottom: 20px;
+  align-self: flex-start;
 }}
-.status-dot {{
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--accent);
-  box-shadow: 0 0 8px var(--accent);
+.card-header-pill.red {{
+  background-color: var(--red-bg);
+  color: var(--red);
+  border: 1px solid rgba(220, 38, 38, 0.2);
 }}
-.header-meta {{
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}}
-.meta-chip {{
-  padding: 6px 14px;
-  background: rgba(255, 255, 255, 0.04);
+.card-header-pill.dark {{
+  background-color: var(--bg-alt);
+  color: var(--text-main);
   border: 1px solid var(--border);
-  border-radius: 8px;
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--text-dim);
-  letter-spacing: 0.05em;
+}}
+.points-vertical-list {{
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}}
+.point-row-item {{
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}}
+.point-bullet-dot {{
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: var(--red);
+  margin-top: 9px;
+  flex-shrink: 0;
+}}
+.point-text-content {{
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.45;
+  color: var(--text-main);
 }}
 
-/* Progress Bar Segments */
-.progress-bar-container {{
+/* Slide Final / Verdict Specific */
+.verdict-box-tei {{
+  background-color: var(--red-bg);
+  border: 2px solid var(--red);
+  border-radius: 22px;
+  padding: 34px 36px;
+  margin-bottom: 22px;
+}}
+.verdict-label-tei {{
+  font-size: 14px;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--red);
+  margin-bottom: 12px;
   display: flex;
+  align-items: center;
   gap: 8px;
+}}
+.verdict-text-tei {{
+  font-size: 23px;
+  font-weight: 700;
+  line-height: 1.45;
+  color: var(--text-main);
+}}
+
+.cta-box-tei {{
+  background: var(--bg-alt);
+  border: 1.5px solid var(--border);
+  border-radius: 20px;
+  padding: 26px 30px;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  margin-bottom: 22px;
+}}
+.cta-circle-q {{
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background-color: var(--red);
+  color: #FFFFFF;
+  font-family: 'Outfit', sans-serif;
+  font-size: 26px;
+  font-weight: 900;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}}
+.cta-question-text {{
+  font-size: 19px;
+  font-weight: 700;
+  line-height: 1.38;
+  color: var(--text-main);
+}}
+
+.sources-box-tei {{
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 16px 22px;
+  margin-bottom: 20px;
+}}
+.sources-title-tei {{
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}}
+.sources-list-tei {{
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}}
+.source-tag {{
+  background: var(--bg-alt);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+}}
+
+/* Progress Bar Red Segments */
+.progress-segments-tei {{
+  display: flex;
+  gap: 6px;
   margin-top: auto;
-  margin-bottom: 16px;
+  margin-bottom: 14px;
 }}
-.progress-bar-seg {{
+.prog-seg-tei {{
   flex: 1;
-  height: 6px;
+  height: 5px;
   border-radius: 3px;
-  background: rgba(255, 255, 255, 0.1);
+  background-color: var(--border);
 }}
-.progress-bar-seg.active {{
-  background: var(--accent);
-  box-shadow: 0 0 10px var(--accent-glow);
+.prog-seg-tei.active {{
+  background-color: var(--red);
 }}
-.footer-text-row {{
+.tei-footer-bar {{
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text-mute);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-muted);
 }}
 """
 
 
 def render_html_cover(content: Dict[str, Any], prog: Dict[str, Any], total_slides: int) -> str:
-    accent = prog["accent"]
-    accent_glow = prog["accent_glow"]
-    hook = html.escape(content.get("hook", ""))
+    """Merender Slide 1 Cover bergaya The Economic Influence."""
+    hook_raw = content.get("hook", "")
+    hook_formatted = format_hook_html(hook_raw)
+    
     hero = content.get("hero", {})
-    hero_val = html.escape(str(hero.get("value", "0%")))
-    hero_label = html.escape(str(hero.get("label", "")))
+    hero_val = html.escape(str(hero.get("value", "")))
+    hero_lbl = html.escape(str(hero.get("label", "")))
     date_str = html.escape(str(content.get("date", "18 OKT 2026"))).upper()
+    
+    # Foto Jurnalistik / Real World
+    img_uri = get_image_data_uri(content.get("hero_image"))
+    
+    # Elemen stat pill jika ada data kunci
+    stat_html = ""
+    if hero_val:
+        stat_html = f"""
+        <div class="stat-pill-row">
+          <div class="stat-pill">
+            <span class="stat-num">{hero_val}</span>
+            <span class="stat-lbl">{hero_lbl}</span>
+          </div>
+        </div>
+        """
 
-    css = get_base_css(accent, accent_glow)
+    # Image DOM
+    if img_uri:
+        photo_dom = f'<img src="{img_uri}" class="cover-photo" alt="Cover Photo" />'
+    else:
+        # Fallback grafis berita jika foto belum tersedia
+        photo_dom = f"""
+        <div style="width:100%; height:100%; background: linear-gradient(135deg, #1E293B 0%, #0F172A 100%); display:flex; align-items:center; justify-content:center; flex-direction:column; padding:40px;">
+          <div style="font-family:'Outfit', sans-serif; font-size:48px; font-weight:900; color:#FFFFFF; margin-bottom:12px;">{prog['badge']}</div>
+          <div style="font-size:20px; font-weight:600; color:#94A3B8; text-align:center;">{hero_lbl}</div>
+        </div>
+        """
 
     return f"""<!DOCTYPE html>
 <html lang="id">
 <head>
 <meta charset="utf-8">
 <style>
-{css}
-
-.cover-tag {{
-  font-size: 14px;
-  font-weight: 800;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--text-mute);
-  margin-bottom: 14px;
-}}
-.cover-hook {{
-  font-family: 'Outfit', sans-serif;
-  font-size: 56px;
-  font-weight: 800;
-  line-height: 1.16;
-  letter-spacing: -0.02em;
-  color: #FFFFFF;
-  margin-bottom: 28px;
-}}
-.cover-hook span {{
-  background: linear-gradient(135deg, #FFFFFF 30%, var(--accent) 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-}}
-
-.hero-box {{
-  flex: 1;
-  background: linear-gradient(145deg, rgba(24, 33, 52, 0.75) 0%, rgba(13, 19, 32, 0.90) 100%);
-  backdrop-filter: blur(28px);
-  border: 1px solid var(--border-light);
-  border-radius: 32px;
-  padding: 42px;
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.15);
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  position: relative;
-  overflow: hidden;
-  margin-bottom: 24px;
-}}
-.hero-box::before {{
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 4px;
-  background: linear-gradient(90deg, transparent, var(--accent), transparent);
-}}
-.hero-header {{
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}}
-.hero-title-pill {{
-  font-size: 13px;
-  font-weight: 800;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--accent);
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}}
-.hero-val-wrap {{
-  margin: 14px 0;
-}}
-.hero-big-number {{
-  font-family: 'Outfit', sans-serif;
-  font-size: 96px;
-  font-weight: 900;
-  line-height: 1;
-  letter-spacing: -0.03em;
-  color: var(--accent);
-  text-shadow: 0 0 45px var(--accent-glow);
-}}
-.hero-desc {{
-  font-size: 26px;
-  font-weight: 600;
-  line-height: 1.35;
-  color: #E2E8F0;
-  margin-top: 14px;
-}}
-
-.hero-visual-card {{
-  background: rgba(0, 0, 0, 0.35);
-  border: 1px solid var(--border);
-  border-radius: 18px;
-  padding: 16px 22px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}}
-.visual-card-text {{
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--text-dim);
-}}
-.visual-card-badge {{
-  padding: 6px 14px;
-  border-radius: 999px;
-  font-size: 13px;
-  font-weight: 800;
-  background: rgba(255, 255, 255, 0.08);
-  color: var(--accent);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-}}
-
-.cover-swipe-row {{
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 20px;
-  padding: 0 4px;
-}}
-.swipe-instruction {{
-  font-size: 18px;
-  font-weight: 700;
-  color: var(--text);
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}}
-.swipe-arrow {{
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
-  background: var(--surface-hi);
-  border: 1px solid var(--border-light);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--accent);
-  font-size: 22px;
-}}
+{get_editorial_css()}
 </style>
 </head>
 <body>
-<div class="ambient-glow-1"></div>
-<div class="ambient-glow-2"></div>
-<div class="grid-overlay"></div>
-
-<div class="content-wrapper">
-  <div class="header-bar">
-    <div class="brand-group">
-      <div class="brand-logo">
-        <div class="logo-icon">
-          <div class="logo-bar"></div>
-          <div class="logo-bar"></div>
-          <div class="logo-bar"></div>
-        </div>
-        <div class="logo-text">METRIKA</div>
-      </div>
-      <div class="program-pill">
-        <div class="status-dot"></div>
-        {prog["label"]}
+  <!-- Top Brand Header -->
+  <div class="tei-brand-bar">
+    <div class="tei-logo-group">
+      <div class="tei-logo-square">M</div>
+      <div class="tei-brand-text">
+        <div class="tei-brand-name">METRIKA</div>
+        <div class="tei-brand-sub">ECONOMIC INFLUENCE & DATA</div>
       </div>
     </div>
-    <div class="header-meta">
-      <div class="meta-chip">{date_str}</div>
-    </div>
+    <div class="tei-meta-tag">{date_str} • {prog['label']}</div>
   </div>
 
-  <div class="cover-tag">{prog["tag"]}</div>
-  <div class="cover-hook"><span>{hook}</span></div>
+  <!-- Headline Area -->
+  <div class="cover-headline-container">
+    <h1 class="cover-headline">{hook_formatted}</h1>
+    {stat_html}
+  </div>
 
-  <div class="hero-box">
-    <div class="hero-header">
-      <div class="hero-title-pill">
-        <div class="status-dot"></div>
-        ANGKA KUNCI & INDIKATOR UTAMA
+  <!-- Lower 55-60%: Real World Photo -->
+  <div class="cover-photo-wrapper">
+    {photo_dom}
+    <div class="photo-gradient-overlay">
+      <div class="photo-swipe-prompt">
+        <span class="photo-swipe-arrow">→</span>
+        Geser untuk bedah data & perbandingan lengkap
       </div>
-    </div>
-
-    <div class="hero-val-wrap">
-      <div class="hero-big-number">{hero_val}</div>
-      <div class="hero-desc">{hero_label}</div>
-    </div>
-
-    <div class="hero-visual-card">
-      <div class="visual-card-text">Status Analisis Ekonomi & Opini Terkini</div>
-      <div class="visual-card-badge">DATA RESMI & TERUJI</div>
+      <div style="color:rgba(255,255,255,0.7); font-size:14px; font-weight:700;">@metrika.id</div>
     </div>
   </div>
-
-  <div class="cover-swipe-row">
-    <div class="swipe-instruction">Geser untuk breakdown data</div>
-    <div class="swipe-arrow">→</div>
-  </div>
-
-  <div class="progress-bar-container">
-    <div class="progress-bar-seg active"></div>
-    {"".join('<div class="progress-bar-seg"></div>' for _ in range(total_slides - 1))}
-  </div>
-
-  <div class="footer-text-row">
-    <div>@metrika.id</div>
-    <div>Data untuk kamu yang berpikir</div>
-  </div>
-</div>
 </body>
 </html>
 """
@@ -488,10 +638,7 @@ def render_html_slide(
     slide_idx: int,
     total_slides: int,
 ) -> str:
-    accent = prog["accent"]
-    accent_glow = prog["accent_glow"]
-    css = get_base_css(accent, accent_glow)
-
+    """Merender Slide 2..N (Data Breakdown) bergaya The Economic Influence."""
     heading = html.escape(slide_data.get("heading", ""))
     metric = slide_data.get("metric")
 
@@ -500,10 +647,10 @@ def render_html_slide(
         m_val = html.escape(str(metric.get("value", "")))
         m_lbl = html.escape(str(metric.get("label", "")))
         metric_html = f"""
-        <div class="metric-spotlight-box">
-          <div class="spotlight-val">{m_val}</div>
-          <div class="spotlight-divider"></div>
-          <div class="spotlight-lbl">{m_lbl}</div>
+        <div class="metric-spotlight-card">
+          <div class="spotlight-big-val">{m_val}</div>
+          <div class="spotlight-vertical-line"></div>
+          <div class="spotlight-label-text">{m_lbl}</div>
         </div>
         """
 
@@ -513,194 +660,87 @@ def render_html_slide(
     cards_html = []
     for i, col in enumerate(columns):
         col_title = html.escape(col.get("title", f"Poin Analisis {i+1}"))
-        col_tone = col.get("tone", "key")
-        tone_color = TONE_COLORS.get(col_tone, accent)
+        pill_class = "red" if i == 0 else "dark"
 
         points = col.get("points", [])
         points_html = []
         for pt in points:
             clean_pt = html.escape(pt)
             points_html.append(f"""
-            <div class="point-row">
-              <div class="point-bullet" style="background: {tone_color}; box-shadow: 0 0 8px {tone_color};"></div>
-              <div class="point-text">{clean_pt}</div>
+            <div class="point-row-item">
+              <div class="point-bullet-dot"></div>
+              <div class="point-text-content">{clean_pt}</div>
             </div>
             """)
 
         cards_html.append(f"""
-        <div class="column-card" style="border-top: 4px solid {tone_color};">
-          <div class="card-header-chip" style="color: {tone_color};">
-            <span style="display:inline-block; width:6px; height:6px; border-radius:50%; background:{tone_color};"></span>
+        <div class="editorial-card">
+          <div class="card-header-pill {pill_class}">
             {col_title}
           </div>
-          <div class="points-wrapper">
+          <div class="points-vertical-list">
             {"".join(points_html)}
           </div>
         </div>
         """)
 
-    grid_class = "columns-layout single-col" if is_single else "columns-layout"
+    grid_class = "cards-grid-layout single-col" if is_single else "cards-grid-layout"
 
-    # Progress bar HTML
+    # Progress bar segments
     prog_segs = []
     for idx in range(total_slides):
         active_cls = "active" if idx < slide_idx else ""
-        prog_segs.append(f'<div class="progress-bar-seg {active_cls}"></div>')
+        prog_segs.append(f'<div class="prog-seg-tei {active_cls}"></div>')
 
     return f"""<!DOCTYPE html>
 <html lang="id">
 <head>
 <meta charset="utf-8">
 <style>
-{css}
-
-.slide-heading {{
-  font-family: 'Outfit', sans-serif;
-  font-size: 46px;
-  font-weight: 800;
-  line-height: 1.2;
-  letter-spacing: -0.01em;
-  color: var(--text);
-  margin-bottom: 24px;
-}}
-
-.metric-spotlight-box {{
-  background: linear-gradient(135deg, rgba(25, 34, 54, 0.7) 0%, rgba(14, 20, 34, 0.85) 100%);
-  border: 1px solid var(--border-light);
-  border-radius: 22px;
-  padding: 22px 30px;
-  display: flex;
-  align-items: center;
-  gap: 28px;
-  margin-bottom: 22px;
-  backdrop-filter: blur(20px);
-}}
-.spotlight-val {{
-  font-family: 'Outfit', sans-serif;
-  font-size: 48px;
-  font-weight: 900;
-  color: var(--accent);
-  white-space: nowrap;
-}}
-.spotlight-divider {{
-  width: 1px;
-  height: 52px;
-  background: var(--border-light);
-}}
-.spotlight-lbl {{
-  font-size: 19px;
-  font-weight: 600;
-  line-height: 1.35;
-  color: var(--text);
-}}
-
-.columns-layout {{
-  flex: 1;
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 20px;
-  margin-bottom: 24px;
-}}
-.columns-layout.single-col {{
-  grid-template-columns: 1fr;
-}}
-.column-card {{
-  background: linear-gradient(180deg, rgba(20, 27, 44, 0.70) 0%, rgba(12, 17, 28, 0.85) 100%);
-  backdrop-filter: blur(22px);
-  border: 1px solid var(--border);
-  border-radius: 24px;
-  padding: 26px 22px;
-  display: flex;
-  flex-direction: column;
-}}
-.card-header-chip {{
-  font-size: 13px;
-  font-weight: 800;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  margin-bottom: 18px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}}
-.points-wrapper {{
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}}
-.point-row {{
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-}}
-.point-bullet {{
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  margin-top: 8px;
-  flex-shrink: 0;
-}}
-.point-text {{
-  font-size: 18px;
-  font-weight: 500;
-  line-height: 1.4;
-  color: var(--text);
-}}
+{get_editorial_css()}
 </style>
 </head>
 <body>
-<div class="ambient-glow-1"></div>
-<div class="ambient-glow-2"></div>
-<div class="grid-overlay"></div>
-
-<div class="content-wrapper">
-  <div class="header-bar">
-    <div class="brand-group">
-      <div class="brand-logo">
-        <div class="logo-icon">
-          <div class="logo-bar"></div>
-          <div class="logo-bar"></div>
-          <div class="logo-bar"></div>
-        </div>
-        <div class="logo-text">METRIKA</div>
-      </div>
-      <div class="program-pill">
-        <div class="status-dot"></div>
-        {prog["label"]}
+  <!-- Top Brand Header -->
+  <div class="tei-brand-bar">
+    <div class="tei-logo-group">
+      <div class="tei-logo-square">M</div>
+      <div class="tei-brand-text">
+        <div class="tei-brand-name">METRIKA</div>
+        <div class="tei-brand-sub">ECONOMIC INFLUENCE & DATA</div>
       </div>
     </div>
-    <div class="header-meta">
-      <div class="meta-chip">{slide_idx:02d} / {total_slides:02d}</div>
+    <div class="tei-meta-tag">{slide_idx:02d} / {total_slides:02d}</div>
+  </div>
+
+  <div class="inside-body">
+    <div class="slide-title-section">
+      <div class="slide-section-badge">{prog['badge']}</div>
+      <h2 class="slide-main-heading">{heading}</h2>
+    </div>
+
+    {metric_html}
+
+    <div class="{grid_class}">
+      {"".join(cards_html)}
+    </div>
+
+    <div class="progress-segments-tei">
+      {"".join(prog_segs)}
+    </div>
+
+    <div class="tei-footer-bar">
+      <div>@metrika.id</div>
+      <div>Data & Jurnalisme Komputasi</div>
     </div>
   </div>
-
-  <div class="slide-heading">{heading}</div>
-
-  {metric_html}
-
-  <div class="{grid_class}">
-    {"".join(cards_html)}
-  </div>
-
-  <div class="progress-bar-container">
-    {"".join(prog_segs)}
-  </div>
-
-  <div class="footer-text-row">
-    <div>@metrika.id</div>
-    <div>Data untuk kamu yang berpikir</div>
-  </div>
-</div>
 </body>
 </html>
 """
 
 
 def render_html_verdict(content: Dict[str, Any], prog: Dict[str, Any], total_slides: int) -> str:
-    accent = prog["accent"]
-    accent_glow = prog["accent_glow"]
-    css = get_base_css(accent, accent_glow)
-
+    """Merender Slide Terakhir (Verdict & Diskusi) bergaya The Economic Influence."""
     verdict_text = html.escape(content.get("verdict", ""))
     cta_text = html.escape(content.get("cta", ""))
     sources = content.get("sources", [])
@@ -708,170 +748,66 @@ def render_html_verdict(content: Dict[str, Any], prog: Dict[str, Any], total_sli
     sources_html = []
     for s in sources:
         clean_s = html.escape(s)
-        sources_html.append(f'<div class="src-item">• {clean_s}</div>')
+        sources_html.append(f'<span class="source-tag">{clean_s}</span>')
 
-    # All segments active
-    prog_segs = ['<div class="progress-bar-seg active"></div>'] * total_slides
+    prog_segs = ['<div class="prog-seg-tei active"></div>'] * total_slides
 
     return f"""<!DOCTYPE html>
 <html lang="id">
 <head>
 <meta charset="utf-8">
 <style>
-{css}
-
-.verdict-header-title {{
-  font-family: 'Outfit', sans-serif;
-  font-size: 46px;
-  font-weight: 800;
-  line-height: 1.2;
-  letter-spacing: -0.01em;
-  color: var(--text);
-  margin-bottom: 24px;
-}}
-
-.verdict-box {{
-  background: linear-gradient(145deg, rgba(24, 33, 52, 0.72) 0%, rgba(13, 19, 32, 0.88) 100%);
-  border: 1px solid var(--border-light);
-  border-radius: 28px;
-  padding: 34px 36px;
-  margin-bottom: 20px;
-  backdrop-filter: blur(24px);
-}}
-.verdict-badge {{
-  font-size: 13px;
-  font-weight: 800;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--accent);
-  margin-bottom: 14px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}}
-.verdict-content {{
-  font-size: 23px;
-  font-weight: 600;
-  line-height: 1.45;
-  color: var(--text);
-}}
-
-.discussion-cta-box {{
-  background: linear-gradient(135deg, rgba(28, 39, 64, 0.55) 0%, rgba(16, 23, 38, 0.75) 100%);
-  border: 2px solid var(--accent);
-  border-radius: 24px;
-  padding: 26px 30px;
-  display: flex;
-  align-items: center;
-  gap: 22px;
-  margin-bottom: 22px;
-  box-shadow: 0 12px 32px rgba(0,0,0,0.35);
-}}
-.cta-badge-circle {{
-  width: 52px;
-  height: 52px;
-  border-radius: 50%;
-  background: var(--accent);
-  color: var(--bg);
-  font-family: 'Outfit', sans-serif;
-  font-size: 30px;
-  font-weight: 900;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}}
-.cta-content-text {{
-  font-size: 20px;
-  font-weight: 700;
-  line-height: 1.35;
-  color: var(--text);
-}}
-
-.sources-card {{
-  background: rgba(0, 0, 0, 0.28);
-  border: 1px solid var(--border);
-  border-radius: 18px;
-  padding: 18px 24px;
-  margin-bottom: 22px;
-}}
-.sources-header {{
-  font-size: 12px;
-  font-weight: 800;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--accent);
-  margin-bottom: 8px;
-}}
-.sources-entries {{
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-}}
-.src-item {{
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--text-dim);
-}}
+{get_editorial_css()}
 </style>
 </head>
 <body>
-<div class="ambient-glow-1"></div>
-<div class="ambient-glow-2"></div>
-<div class="grid-overlay"></div>
-
-<div class="content-wrapper">
-  <div class="header-bar">
-    <div class="brand-group">
-      <div class="brand-logo">
-        <div class="logo-icon">
-          <div class="logo-bar"></div>
-          <div class="logo-bar"></div>
-          <div class="logo-bar"></div>
-        </div>
-        <div class="logo-text">METRIKA</div>
-      </div>
-      <div class="program-pill">
-        <div class="status-dot"></div>
-        {prog["label"]}
+  <!-- Top Brand Header -->
+  <div class="tei-brand-bar">
+    <div class="tei-logo-group">
+      <div class="tei-logo-square">M</div>
+      <div class="tei-brand-text">
+        <div class="tei-brand-name">METRIKA</div>
+        <div class="tei-brand-sub">ECONOMIC INFLUENCE & DATA</div>
       </div>
     </div>
-    <div class="header-meta">
-      <div class="meta-chip">{total_slides:02d} / {total_slides:02d}</div>
+    <div class="tei-meta-tag">{total_slides:02d} / {total_slides:02d}</div>
+  </div>
+
+  <div class="inside-body">
+    <div class="slide-title-section">
+      <div class="slide-section-badge">KESIMPULAN DATA</div>
+      <h2 class="slide-main-heading">Verdict Objektif & Ruang Diskusi</h2>
+    </div>
+
+    <div class="verdict-box-tei">
+      <div class="verdict-label-tei">
+        <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:var(--red);"></span>
+        ANALISIS REDAKSI
+      </div>
+      <div class="verdict-text-tei">{verdict_text}</div>
+    </div>
+
+    <div class="cta-box-tei">
+      <div class="cta-circle-q">?</div>
+      <div class="cta-question-text">{cta_text}</div>
+    </div>
+
+    <div class="sources-box-tei">
+      <div class="sources-title-tei">SUMBER DATA TERVERIFIKASI</div>
+      <div class="sources-list-tei">
+        {"".join(sources_html)}
+      </div>
+    </div>
+
+    <div class="progress-segments-tei">
+      {"".join(prog_segs)}
+    </div>
+
+    <div class="tei-footer-bar">
+      <div>@metrika.id</div>
+      <div>The Economic Influence of Data</div>
     </div>
   </div>
-
-  <div class="verdict-header-title">Kesimpulan Data & Diskusi</div>
-
-  <div class="verdict-box">
-    <div class="verdict-badge">
-      <div class="status-dot"></div>
-      VERDICT OBJEKTIF
-    </div>
-    <div class="verdict-content">{verdict_text}</div>
-  </div>
-
-  <div class="discussion-cta-box">
-    <div class="cta-badge-circle">?</div>
-    <div class="cta-content-text">{cta_text}</div>
-  </div>
-
-  <div class="sources-card">
-    <div class="sources-header">SUMBER DATA TERVERIFIKASI</div>
-    <div class="sources-entries">
-      {"".join(sources_html)}
-    </div>
-  </div>
-
-  <div class="progress-bar-container">
-    {"".join(prog_segs)}
-  </div>
-
-  <div class="footer-text-row">
-    <div>@metrika.id</div>
-    <div>Data untuk kamu yang berpikir</div>
-  </div>
-</div>
 </body>
 </html>
 """
@@ -884,8 +820,8 @@ def render_carousel_slides(
     content: Dict[str, Any], out_dir: str | Path, fmt: str = "PNG"
 ) -> List[Path]:
     """
-    Merender slide carousel 1080x1350 menggunakan Playwright (Chromium Headless).
-    Menghasilkan gambar berkelas agensi dengan font Google, glassmorphism, dan ambient glow.
+    Merender slide carousel 1080x1350 bergaya @theeconomicinfluence
+    menggunakan Playwright Chromium Headless.
     """
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -894,33 +830,31 @@ def render_carousel_slides(
     prog = PROGRAMS_META.get(prog_id, PROGRAMS_META["ANGKA_BICARA"])
 
     slides_data = content.get("slides", [])[:4]
-    total_slides = 2 + len(slides_data)  # 1 cover + N content + 1 verdict
+    total_slides = 2 + len(slides_data)  # Cover + N Slides + Verdict
 
-    # Generate HTML Strings
     html_pages: List[Tuple[str, str]] = []
 
-    # Slide 1: Cover
+    # Slide 1: Cover dengan Foto Jurnalistik / Meme Humanis
     html_pages.append(("slide_01", render_html_cover(content, prog, total_slides)))
 
-    # Slides 2..N: Content
+    # Slides 2..N: Breakdown Data Bersih
     for i, s_data in enumerate(slides_data, start=2):
         html_pages.append((f"slide_{i:02d}", render_html_slide(content, prog, s_data, i, total_slides)))
 
-    # Slide Final: Verdict
+    # Slide Final: Verdict & CTA
     html_pages.append((f"slide_{total_slides:02d}", render_html_verdict(content, prog, total_slides)))
 
-    # Simpan file HTML untuk cadangan & transparansi
+    # Simpan backup file HTML
     for name, page_html in html_pages:
         html_file = out_dir / f"{name}.html"
         html_file.write_text(page_html, encoding="utf-8")
 
     out_paths: List[Path] = []
 
-    # Eksekusi Render Playwright
     try:
         from playwright.sync_api import sync_playwright
 
-        print("[Playwright] Memulai Chromium headless untuk render carousel...")
+        print("[Playwright] Merender carousel The Economic Influence via Chromium...")
         with sync_playwright() as p:
             browser = p.chromium.launch(
                 args=[
@@ -938,7 +872,6 @@ def render_carousel_slides(
 
             for name, page_html in html_pages:
                 out_img = out_dir / f"{name}.png"
-                # Load HTML dan tunggu font render
                 page.set_content(page_html, wait_until="networkidle")
                 try:
                     page.evaluate("document.fonts.ready")
@@ -946,7 +879,7 @@ def render_carousel_slides(
                     pass
                 page.screenshot(path=str(out_img), type="png")
                 out_paths.append(out_img)
-                print(f"[Playwright] Berhasil merender: {out_img.name}")
+                print(f"[Playwright] Berhasil render: {out_img.name}")
 
             browser.close()
 
@@ -954,9 +887,9 @@ def render_carousel_slides(
         log.warning("Playwright belum terpasang. Menjalankan fallback visual.")
         for name, _ in html_pages:
             fallback_img = out_dir / f"{name}.png"
-            im = Image.new("RGB", (W_IG, H_IG), (10, 14, 23))
+            im = Image.new("RGB", (W_IG, H_IG), (255, 255, 255))
             d = ImageDraw.Draw(im)
-            d.text((100, 100), f"METRIKA • {prog['label']}\n(Silakan install Playwright)", fill=(240, 240, 240))
+            d.text((100, 100), f"METRIKA • {prog['label']}\n(Silakan install Playwright)", fill=(17, 24, 39))
             im.save(fallback_img)
             out_paths.append(fallback_img)
 
@@ -967,7 +900,6 @@ def render_carousel_slides(
 # 3. GENERATOR VIDEO VERTIKAL (1080x1920) DENGAN SUBTITLE KARAOKE
 # ==============================================================================
 def words_from_edge_boundaries(boundaries: Sequence[dict]) -> List[dict]:
-    """Edge-TTS WordBoundary -> [{'text', 'start', 'end'}]."""
     return [
         {
             "text": b["text"],
@@ -989,8 +921,8 @@ def render_vertical_video(
     preset: str = "veryfast",
 ) -> Path:
     """
-    Merender video 1080x1920 yang menyematkan slide carousel resolusi tinggi di tengah
-    dengan latar dinamis dan subtitle karaoke aktif di bagian bawah.
+    Merender video 1080x1920 vertikal yang menempatkan slide beresolusi tinggi di tengah
+    dengan latar bersih dan subtitle karaoke berjalan aktif di bar bawah.
     """
     out_path = Path(out_path)
     out_path.parent.mkdir(parents=True, exist_ok=True)
@@ -998,7 +930,6 @@ def render_vertical_video(
     prog_id = content.get("program", "ANGKA_BICARA")
     prog = PROGRAMS_META.get(prog_id, PROGRAMS_META["ANGKA_BICARA"])
 
-    # Dapatkan durasi audio riil
     if audio_path and Path(audio_path).exists():
         try:
             probe = subprocess.run(
@@ -1023,11 +954,9 @@ def render_vertical_video(
     if duration is None:
         duration = (words[-1]["end"] + 1.0) if words else 25.0
 
-    # Dapatkan slide carousel yang telah dirender
     carousel_dir = out_path.parent / "carousel"
     slide_files = sorted(list(carousel_dir.glob("slide_*.png")))
 
-    # Bangun frame video dengan Pillow lalu dipipa ke FFmpeg
     cmd = [
         "ffmpeg",
         "-y",
@@ -1066,7 +995,6 @@ def render_vertical_video(
 
     proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
 
-    # Pra-load gambar slide
     slides_img = []
     if slide_files:
         for sf in slide_files:
@@ -1078,14 +1006,12 @@ def render_vertical_video(
                 continue
 
     if not slides_img:
-        slides_img = [Image.new("RGB", (W_V - 80, 1250), (20, 28, 45))]
+        slides_img = [Image.new("RGB", (W_V - 80, 1250), (255, 255, 255))]
 
     n_slides = len(slides_img)
     slide_duration = duration / n_slides
-
     n_frames = int(math.ceil(duration * fps))
 
-    # Font untuk subtitle
     try:
         sub_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 36)
     except Exception:
@@ -1098,14 +1024,15 @@ def render_vertical_video(
             slide_idx = min(int(t // slide_duration), n_slides - 1)
             active_slide = slides_img[slide_idx]
 
-            frame = Image.new("RGB", (W_V, H_V), (7, 9, 14))
+            # Kanvas dasar vertikal putih abu-abu bersih
+            frame = Image.new("RGB", (W_V, H_V), (243, 244, 246))
             frame.paste(active_slide, (40, 160))
 
             draw = ImageDraw.Draw(frame)
 
-            # Subtitle Box (y=1530..1770)
+            # Subtitle Card Box (y=1530..1770)
             sub_box = (60, 1530, W_V - 60, 1770)
-            draw.rounded_rectangle(sub_box, radius=24, fill=(18, 25, 40), outline=(50, 65, 95), width=2)
+            draw.rounded_rectangle(sub_box, radius=20, fill=(255, 255, 255), outline=(220, 38, 38), width=3)
 
             active_word_text = ""
             if words:
@@ -1119,7 +1046,7 @@ def render_vertical_video(
                     (W_V // 2, 1650),
                     active_word_text,
                     font=sub_font,
-                    fill=(250, 204, 21),
+                    fill=(220, 38, 38),
                     anchor="mm",
                 )
             else:
@@ -1127,14 +1054,14 @@ def render_vertical_video(
                     (W_V // 2, 1650),
                     f"{prog['label']} • @metrika.id",
                     font=sub_font,
-                    fill=(148, 163, 184),
+                    fill=(75, 85, 99),
                     anchor="mm",
                 )
 
-            # Progress Bar Global Video (y=1820)
+            # Progress Bar Global Video
             p_width = max(10, int((W_V - 120) * (t / duration)))
-            draw.rounded_rectangle((60, 1820, W_V - 60, 1828), radius=4, fill=(30, 41, 59))
-            draw.rounded_rectangle((60, 1820, 60 + p_width, 1828), radius=4, fill=(250, 204, 21))
+            draw.rounded_rectangle((60, 1820, W_V - 60, 1828), radius=4, fill=(229, 231, 235))
+            draw.rounded_rectangle((60, 1820, 60 + p_width, 1828), radius=4, fill=(220, 38, 38))
 
             proc.stdin.write(frame.tobytes())
 
