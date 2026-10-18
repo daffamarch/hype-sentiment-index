@@ -80,14 +80,30 @@ def strip_emoji_deep(obj: Any) -> Any:
     return obj
 
 
+RED_TAG_RE = re.compile(r"</?(?:red|highlight)>", re.I)
+
+
 def esc(text: Any) -> str:
-    """Escape HTML + hapus emoji."""
-    return html.escape(strip_emoji(text))
+    """Escape HTML + hapus emoji + buang tag <red> (untuk field teks polos)."""
+    return html.escape(RED_TAG_RE.sub("", strip_emoji(text)))
+
+
+def rich_html(text: Any) -> str:
+    """Escape HTML lalu ubah <red>..</red> menjadi highlight merah dan **teks** menjadi <b>."""
+    t = html.escape(strip_emoji(text))
+    opens = len(re.findall(r"&lt;(?:red|highlight)&gt;", t, flags=re.I))
+    closes = len(re.findall(r"&lt;/(?:red|highlight)&gt;", t, flags=re.I))
+    if opens == closes and opens > 0:
+        t = re.sub(r"&lt;(?:red|highlight)&gt;", '<span class="text-red">', t, flags=re.I)
+        t = re.sub(r"&lt;/(?:red|highlight)&gt;", "</span>", t, flags=re.I)
+    else:                                   # tag tidak seimbang: buang saja, jangan rusak layout
+        t = re.sub(r"&lt;/?(?:red|highlight)&gt;", "", t, flags=re.I)
+    return re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", t)
 
 
 def bold_html(text: Any) -> str:
-    """Konversi **teks** menjadi <b>teks</b> (setelah escape)."""
-    return re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", esc(text))
+    """Isi kartu/poin: **tebal** dan <red>highlight</red> dirender, selebihnya di-escape."""
+    return rich_html(text)
 
 
 LEAD_RE = re.compile(r"^\s*\*\*(.+?)\*\*\s*(.*)$", re.S)
@@ -519,7 +535,7 @@ def header_box(eyebrow: str, hook: str) -> str:
     return f"""
       <div class="slide-header-box">
         <div class="slide-eyebrow-pill">{esc(eyebrow)}</div>
-        <h2 class="slide-hook-headline">{esc(hook)}</h2>
+        <h2 class="slide-hook-headline">{rich_html(hook)}</h2>
       </div>"""
 
 
