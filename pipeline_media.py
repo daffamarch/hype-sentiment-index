@@ -1,18 +1,21 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Hype & Sentiment Index - Studio Creative Edition (Anti-AI-Slop V2)
-==================================================================
-Perbaikan total kualitas visual dan audio:
-1. Validasi Foto Jurnalistik: Hanya menyedot foto asli dari portal media berita
-   Indonesia terpercaya (Detik, Kompas, CNN, Kumparan, Antara, Liputan6) dan
-   memblokir domain marketplace (Amazon, Shopee, Tokopedia).
-2. Subtitle Karaoke Nyala Akurat: Memperbaiki parser timing Edge-TTS (WordBoundary &
-   Sentence chunking) agar kata menyala warna emas (#FACC15) sinkron dengan suara.
-3. Audio Profesional: Musik latar Lofi/Beat dinamis via synthesizer FFmpeg (chord progression
-   C minor - Ab mayor - Eb mayor) + suara transisi Whoosh di detik perpindahan babak (detik 10 & 20).
-4. Visual Layout Modern: Full screen foto berita berlapis Dark Glassmorphism, ticker Bloomberg,
-   dan kartu sentimen tajam.
+Indeks Keringat - Labor & Purchasing Power Media (Evergreen Edition)
+===================================================================
+Media otomasi cerdas berbasis Data Science & Jurnalisme Komputasional.
+Konsep: Menghitung nilai riil barang viral/gadget/gaya hidup terhadap
+daya beli nyata masyarakat Indonesia:
+1. Jam kerja / trip Driver Ojek Online (Gojek/Grab)
+2. Hari kerja / porsi gaji Pekerja UMR Jakarta
+3. Waktu menabung Fresh Graduate S1
+4. Nilai alternatif riil (Beras, Emas Antam, Sewa Kos)
+
+Keluaran:
+- 6 Slide Carousel Instagram (4:5, 1080x1350) Dark Minimalist Infographic
+- 1 Video Vertikal TikTok / Reels (9:16, 1080x1920) dengan animasi kalkulator
+- Voiceover natural ekspresif via Edge-TTS (id-ID-GadisNeural, tempo +12%)
+- Distribusi otomatis harian ke Bot Telegram pribadi
 """
 
 import asyncio
@@ -29,14 +32,27 @@ import urllib.parse
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-import edge_tts
-import feedparser
+try:
+    import edge_tts
+except ImportError:
+    edge_tts = None
+
+try:
+    import feedparser
+except ImportError:
+    feedparser = None
+
 import requests
-from bs4 import BeautifulSoup
+
+try:
+    from bs4 import BeautifulSoup
+except ImportError:
+    BeautifulSoup = None
+
 from PIL import Image, ImageDraw, ImageEnhance, ImageFilter, ImageFont
 
 # ==============================================================================
-# 1. KONFIGURASI LINGKUNGAN & KONSTANTA GLOBAL
+# 1. KONFIGURASI LINGKUNGAN & PARAMETER EKONOMI INDONESIA
 # ==============================================================================
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "").strip()
 GEMINI_MODEL_OVERRIDE = os.environ.get("GEMINI_MODEL", "").strip()
@@ -52,13 +68,14 @@ PREFERRED_GEMINI_MODELS = [
     "gemini-1.5-pro",
 ]
 
+# RSS Feed untuk topik gaya hidup, gadget, otomotif, konser, dan ekonomi viral
 RSS_FEEDS = [
-    "https://news.google.com/rss/headlines/section/topic/ENTERTAINMENT?hl=id&gl=ID&ceid=ID:id",
     "https://news.google.com/rss/headlines/section/topic/TECHNOLOGY?hl=id&gl=ID&ceid=ID:id",
-    "https://news.google.com/rss/search?q=viral+OR+trending+OR+netizen+indonesia&hl=id&gl=ID&ceid=ID:id",
+    "https://news.google.com/rss/headlines/section/topic/BUSINESS?hl=id&gl=ID&ceid=ID:id",
+    "https://news.google.com/rss/search?q=harga+resmi+OR+tiket+konser+OR+gadget+viral+OR+mobil+motor+indonesia&hl=id&gl=ID&ceid=ID:id",
+    "https://news.google.com/rss/search?q=gaya+hidup+OR+belanja+OR+biaya+hidup+anak+muda&hl=id&gl=ID&ceid=ID:id",
 ]
 
-# Blacklist domain agar tidak ada foto produk e-commerce acak
 BLOCKED_IMAGE_DOMAINS = [
     "amazon.com",
     "media-amazon.com",
@@ -68,7 +85,6 @@ BLOCKED_IMAGE_DOMAINS = [
     "bukalapak",
     "aliexpress",
     "ebay",
-    "googleusercontent.com/J6_coFbogxhRI9iM864NL",
 ]
 
 CACHE_FILE = Path("posted_links.txt")
@@ -76,29 +92,47 @@ OUTPUT_DIR = Path("output_media")
 CAROUSEL_DIR = OUTPUT_DIR / "carousel"
 AUDIO_PATH = OUTPUT_DIR / "voiceover.mp3"
 SUBTITLE_PATH = OUTPUT_DIR / "subtitles.json"
-HERO_IMG_PATH = OUTPUT_DIR / "news_hero.jpg"
-FINAL_VIDEO_PATH = OUTPUT_DIR / "tiktok_reels_hype_index.mp4"
+HERO_IMG_PATH = OUTPUT_DIR / "item_hero.jpg"
+FINAL_VIDEO_PATH = OUTPUT_DIR / "tiktok_reels_indeks_keringat.mp4"
 
-TTS_VOICE = "id-ID-ArdiNeural"
-TTS_RATE = "+6%"
+# Standar Ekonomi Riil Indonesia (Benchmark Deterministik)
+UMR_JAKARTA = 5_067_381           # Rp 5.067.381/bulan
+HARI_KERJA_SEBULAN = 22           # 22 hari kerja
+UMR_PER_HARI = UMR_JAKARTA / HARI_KERJA_SEBULAN       # ~Rp 230.335/hari
+UMR_PER_JAM = UMR_PER_HARI / 8                        # ~Rp 28.791/jam
+
+OJOL_NET_PER_TRIP = 12_500        # Rata-rata laba bersih per order/trip
+OJOL_NET_PER_HARI = 150_000       # Rata-rata 12 trip per hari (~Rp 150.000)
+OJOL_NET_PER_JAM = 16_000         # Jam kerja jalanan aktif
+
+FRESHGRAD_GAJI = 7_000_000        # Gaji rata-rata fresh graduate S1
+TABUNGAN_FRESHGRAD_MO = 2_100_000 # Rasio tabungan wajar 30% per bulan
+
+HARGA_BERAS_5KG = 75_000          # 1 karung beras 5kg
+HARGA_EMAS_ANTAM_GRAM = 1_450_000 # 1 gram emas Antam
+SEWA_KOS_JAKARTA_MO = 1_800_000   # 1 bulan sewa kos standar Jakarta
+
+# TTS: Suara GadisNeural dengan intonasi lincah (+12%) agar tidak datar
+TTS_VOICE = "id-ID-GadisNeural"
+TTS_RATE = "+12%"
 
 CAROUSEL_WIDTH = 1080
 CAROUSEL_HEIGHT = 1350
 VIDEO_WIDTH = 1080
 VIDEO_HEIGHT = 1920
 
-# Palet Warna Editorial Premium
-COLOR_BG = (10, 14, 23)            # #0A0E17 Dark Slate
-COLOR_CARD = (18, 24, 38)          # #121826 Card Panel
-COLOR_CARD_ALT = (26, 35, 56)      # #1A2338 Highlight Panel
-COLOR_BORDER = (45, 60, 92)        # #2D3C5C Border Vektor
-COLOR_TEXT_MAIN = (248, 250, 252)  # #F8FAFC Putih Bersih
+# Palet Visual Dark Minimalist & Punchy Colors
+COLOR_BG = (10, 15, 26)            # #0A0F1A Deep Midnight Slate
+COLOR_CARD = (18, 26, 44)          # #121A2C Navy Card
+COLOR_CARD_ALT = (26, 37, 62)      # #1A253E Highlight Panel
+COLOR_BORDER = (42, 58, 92)        # #2A3A5C Clean Vector Border
+COLOR_TEXT_MAIN = (248, 250, 252)  # #F8FAFC Crisp White
 COLOR_TEXT_MUTED = (148, 163, 184) # #94A3B8 Slate Gray
-COLOR_BULLISH = (16, 185, 129)     # #10B981 Hijau Bursa
-COLOR_BEARISH = (239, 68, 68)      # #EF4444 Merah Bursa
-COLOR_NEUTRAL = (245, 158, 11)     # #F59E0B Amber
-COLOR_ACCENT = (56, 189, 248)      # #38BDF8 Cyber Cyan
-COLOR_HIGHLIGHT = (250, 204, 21)   # #FACC15 Kuning Karaoke
+COLOR_EMERALD = (16, 185, 129)     # #10B981 Money / Labor Success
+COLOR_OJOL = (0, 170, 19)          # #00AA13 Hijau Khas Ojol
+COLOR_AMBER = (245, 158, 11)       # #F59E0B Warning / High Effort
+COLOR_CYBER_GOLD = (250, 204, 21)  # #FACC15 Golden Highlight
+COLOR_ACCENT = (56, 189, 248)      # #38BDF8 Cyan Metric
 
 HTTP_HEADERS = {
     "User-Agent": (
@@ -110,8 +144,13 @@ HTTP_HEADERS = {
 
 
 # ==============================================================================
-# 2. UTILITAS FONT & PEMBERSIH TEKS
+# 2. UTILITAS FORMAT RUPIAH & FONT
 # ==============================================================================
+def format_rupiah(amount: int) -> str:
+    """Format angka rupiah rapi: Rp 24.999.000"""
+    return f"Rp {amount:,.0f}".replace(",", ".")
+
+
 def load_font(size: int, bold: bool = False) -> ImageFont.FreeTypeFont:
     candidates = (
         [
@@ -144,7 +183,7 @@ def clean_html(raw_html: str) -> str:
 
 
 # ==============================================================================
-# 3. MODUL NEWS INGESTION & SCRAPER FOTO JURNALISTIK TERVALIDASI
+# 3. MODUL INGESTION TREN KONSUMEN & FOTO JURNALISTIK PRODUK/ITEM
 # ==============================================================================
 def load_posted_links() -> set:
     if not CACHE_FILE.exists():
@@ -159,78 +198,75 @@ def save_posted_link(link: str) -> None:
         f.write(f"{link.strip()}\n")
 
 
-def fetch_latest_unposted_news() -> Tuple[Dict[str, str], List[str]]:
+def fetch_latest_lifestyle_trend() -> Tuple[Dict[str, str], List[str]]:
     posted = load_posted_links()
     candidates: List[Dict[str, str]] = []
 
-    for rss_url in RSS_FEEDS:
-        print(f"[RSS] Mengambil feed: {rss_url}")
-        feed = feedparser.parse(rss_url)
-        for entry in feed.entries[:15]:
-            link = entry.get("link", "").strip()
-            title = entry.get("title", "").strip()
-            summary = clean_html(entry.get("summary", ""))
-            published = entry.get("published", "")
-            if link and title and link not in posted:
-                candidates.append(
-                    {
-                        "title": title,
-                        "link": link,
-                        "summary": summary,
-                        "published": published,
-                    }
-                )
+    if feedparser is not None:
+        for rss_url in RSS_FEEDS:
+            print(f"[RSS] Memindai feed tren: {rss_url[:65]}...")
+            try:
+                feed = feedparser.parse(rss_url)
+                for entry in feed.entries[:15]:
+                    link = entry.get("link", "").strip()
+                    title = entry.get("title", "").strip()
+                    summary = clean_html(entry.get("summary", ""))
+                    published = entry.get("published", "")
+                    if link and title and link not in posted:
+                        candidates.append(
+                            {
+                                "title": title,
+                                "link": link,
+                                "summary": summary,
+                                "published": published,
+                            }
+                        )
+            except Exception:
+                continue
 
     if not candidates:
-        raise RuntimeError(
-            "Tidak ditemukan berita baru yang belum diposting di RSS Feed hari ini."
+        # Fallback evergreen jika feed belum update
+        candidates.append(
+            {
+                "title": "Harga iPhone 16 Pro Max Resmi dan Fenomena Konsumerisme Gadget",
+                "link": f"https://indekskeringat.internal/evergreen/{datetime.date.today()}",
+                "summary": "Analisis harga resmi gadget flagship terhadap daya beli upah minimum dan jam kerja pekerja informal di Indonesia.",
+                "published": str(datetime.date.today()),
+            }
         )
 
-    primary_news = candidates[0]
-    supporting_headlines = [item["title"] for item in candidates[1:6]]
-    print(f"[RSS] Berita terpilih: {primary_news['title']}")
-    return primary_news, supporting_headlines
+    primary_item = candidates[0]
+    supporting = [item["title"] for item in candidates[1:6]]
+    print(f"[RSS] Topik terpilih: {primary_item['title']}")
+    return primary_item, supporting
 
 
-def is_valid_news_image_url(url: str) -> bool:
-    """Memfilter URL agar tidak mengambil foto produk e-commerce atau icon banner."""
-    lower_url = url.lower()
-    for blocked in BLOCKED_IMAGE_DOMAINS:
-        if blocked in lower_url:
-            return False
-    return lower_url.endswith((".jpg", ".jpeg", ".png", ".webp")) or "image" in lower_url
-
-
-def fetch_real_editorial_photo(
-    news_item: Dict[str, str], entity_name: str, save_path: Path
+def fetch_editorial_photo(
+    news_item: Dict[str, str], item_name: str, save_path: Path
 ) -> Optional[Image.Image]:
-    """
-    Mengambil foto jurnalistik asli dari portal berita nasional terpercaya
-    (Detik, Kompas, CNN, Kumparan, Antara) dan memvalidasi rasio foto.
-    """
+    """Mengambil foto produk/subjek dari portal berita atau media resmi."""
     candidate_urls: List[str] = []
 
-    # 1. Scrape og:image dari link artikel asli
-    try:
-        resp = requests.get(
-            news_item["link"], headers=HTTP_HEADERS, timeout=12, allow_redirects=True
-        )
-        if resp.status_code == 200:
-            soup = BeautifulSoup(resp.text, "html.parser")
-            for prop in ("og:image", "twitter:image", "og:image:secure_url"):
-                meta = soup.find("meta", property=prop) or soup.find(
-                    "meta", attrs={"name": prop}
-                )
-                if meta and meta.get("content", "").startswith("http"):
-                    val = meta["content"].strip()
-                    if is_valid_news_image_url(val):
-                        candidate_urls.append(val)
-    except Exception as exc:
-        print(f"[Photo] Info scrape og:image ({exc}), beralih ke pencarian jurnalistik.")
+    if BeautifulSoup is not None:
+        try:
+            resp = requests.get(
+                news_item["link"], headers=HTTP_HEADERS, timeout=12, allow_redirects=True
+            )
+            if resp.status_code == 200:
+                soup = BeautifulSoup(resp.text, "html.parser")
+                for prop in ("og:image", "twitter:image", "og:image:secure_url"):
+                    meta = soup.find("meta", property=prop) or soup.find(
+                        "meta", attrs={"name": prop}
+                    )
+                    if meta and meta.get("content", "").startswith("http"):
+                        val = meta["content"].strip()
+                        if not any(b in val.lower() for b in BLOCKED_IMAGE_DOMAINS):
+                            candidate_urls.append(val)
+        except Exception:
+            pass
 
-    # 2. Cari foto berita dari Google/Bing Images dengan membatasi situs berita terpercaya
-    clean_title = re.sub(r"[-–|].*", "", news_item["title"]).strip()
-    search_q = f"{clean_title} site:detik.com OR site:kompas.com OR site:cnnindonesia.com OR site:kumparan.com"
+    # Pencarian cadangan via Bing Images
+    search_q = f"{item_name} Indonesia resmi site:detik.com OR site:kompas.com OR site:kumparan.com"
     bing_url = (
         "https://www.bing.com/images/search?q="
         + urllib.parse.quote(search_q)
@@ -241,7 +277,7 @@ def fetch_real_editorial_photo(
         if b_resp.status_code == 200:
             matches = re.findall(r'murl&quot;:&quot;(https?://[^&]+?)&quot;', b_resp.text)
             for m in matches[:6]:
-                if is_valid_news_image_url(m) and m not in candidate_urls:
+                if not any(b in m.lower() for b in BLOCKED_IMAGE_DOMAINS):
                     candidate_urls.append(m)
     except Exception:
         pass
@@ -251,25 +287,21 @@ def fetch_real_editorial_photo(
             r = requests.get(img_url, headers=HTTP_HEADERS, timeout=12)
             if r.status_code == 200 and len(r.content) > 20_000:
                 pil_img = Image.open(io.BytesIO(r.content)).convert("RGB")
-                # Pastikan foto berorientasi lanskap atau persegi layak (bukan thumbnail kecil)
                 if pil_img.width >= 400 and pil_img.height >= 250:
                     pil_img.save(save_path, format="JPEG", quality=92)
-                    print(
-                        f"[Photo] Sukses mengunduh foto jurnalistik ({pil_img.width}x{pil_img.height}): {img_url[:65]}..."
-                    )
+                    print(f"[Photo] Foto produk berhasil diunduh: {img_url[:65]}...")
                     return pil_img
         except Exception:
             continue
 
-    print("[Photo] Memakai background dark-mode gradient (foto berita tidak tersedia).")
+    print("[Photo] Menggunakan visual background data canvas dark-mode.")
     return None
 
 
-def crop_and_zoom_photo(
+def crop_and_banner_photo(
     photo: Optional[Image.Image],
     target_w: int,
     target_h: int,
-    zoom_factor: float = 1.0,
     darken: float = 0.55,
 ) -> Image.Image:
     if photo is None:
@@ -286,25 +318,22 @@ def crop_and_zoom_photo(
         new_w = src_w
         new_h = int(src_w / target_ratio)
 
-    zoom_w = max(10, int(new_w / max(zoom_factor, 1.0)))
-    zoom_h = max(10, int(new_h / max(zoom_factor, 1.0)))
-
-    left = (src_w - zoom_w) // 2
-    top = (src_h - zoom_h) // 2
-    cropped = photo.crop((left, top, left + zoom_w, top + zoom_h))
+    left = (src_w - new_w) // 2
+    top = (src_h - new_h) // 2
+    cropped = photo.crop((left, top, left + new_w, top + new_h))
     resized = cropped.resize((target_w, target_h), Image.Resampling.LANCZOS)
 
     enhancer = ImageEnhance.Brightness(resized)
     darkened = enhancer.enhance(darken)
 
-    # Gradient fade ke COLOR_BG
+    # Gradient fade ke background bawah
     gradient = Image.new("L", (1, target_h), color=0)
     for y in range(target_h):
-        if y < int(target_h * 0.40):
+        if y < int(target_h * 0.45):
             alpha = 0
         else:
-            prog = (y - target_h * 0.40) / (target_h * 0.60)
-            alpha = int(min(255, prog * 245))
+            prog = (y - target_h * 0.45) / (target_h * 0.55)
+            alpha = int(min(255, prog * 250))
         gradient.putpixel((0, y), alpha)
 
     alpha_mask = gradient.resize((target_w, target_h))
@@ -313,7 +342,7 @@ def crop_and_zoom_photo(
 
 
 # ==============================================================================
-# 4. MODUL OTAK AI: AUTO-DETECT GEMINI & PROMPT EDITORIAL TAJAM
+# 4. MODUL OTAK AI: EKSTRAKSI ITEM, HARGA RIIL & KALKULASI DAYA BELI
 # ==============================================================================
 def get_available_gemini_models() -> List[str]:
     if GEMINI_MODEL_OVERRIDE:
@@ -322,189 +351,181 @@ def get_available_gemini_models() -> List[str]:
             m for m in PREFERRED_GEMINI_MODELS if m != clean_override
         ]
 
-    list_url = (
-        f"https://generativelanguage.googleapis.com/v1beta/models?key={GEMINI_API_KEY}"
-    )
-    discovered_models: List[str] = []
-
+    list_url = f"https://generativelanguage.googleapis.com/v1beta/models?key={GEMINI_API_KEY}"
+    discovered: List[str] = []
     try:
         resp = requests.get(list_url, timeout=20)
         resp.raise_for_status()
-        models_payload = resp.json().get("models", [])
-        for m in models_payload:
+        for m in resp.json().get("models", []):
             name = m.get("name", "").replace("models/", "")
-            methods = m.get("supportedGenerationMethods", [])
-            if (
-                "generateContent" in methods
-                and name.startswith("gemini-")
-                and not any(
-                    excl in name
-                    for excl in ("embedding", "imagen", "veo", "tts", "aqa", "vision")
-                )
-            ):
-                discovered_models.append(name)
-    except Exception as exc:
-        print(f"[Gemini] Info query model ({exc}), memakai daftar prioritas bawaan.")
+            if "generateContent" in m.get("supportedGenerationMethods", []) and name.startswith("gemini-"):
+                discovered.append(name)
+    except Exception:
         return list(PREFERRED_GEMINI_MODELS)
 
-    if not discovered_models:
-        return list(PREFERRED_GEMINI_MODELS)
-
-    ordered: List[str] = []
-    for pref in PREFERRED_GEMINI_MODELS:
-        if pref in discovered_models and pref not in ordered:
-            ordered.append(pref)
-    for m in sorted(discovered_models, reverse=True):
-        if "flash" in m and m not in ordered:
-            ordered.append(m)
-    for m in sorted(discovered_models, reverse=True):
+    ordered = [m for m in PREFERRED_GEMINI_MODELS if m in discovered]
+    for m in discovered:
         if m not in ordered:
             ordered.append(m)
-
-    print(f"[Gemini] Urutan model aktif: {', '.join(ordered[:5])}")
-    return ordered
+    return ordered or list(PREFERRED_GEMINI_MODELS)
 
 
-def analyze_news_with_gemini(
-    primary_news: Dict[str, str], supporting_headlines: List[str]
+def analyze_purchasing_power_with_gemini(
+    news_item: Dict[str, str], supporting_headlines: List[str]
 ) -> Dict[str, Any]:
     if not GEMINI_API_KEY:
-        raise EnvironmentError(
-            "Environment variable GEMINI_API_KEY belum diatur! Pastikan sudah dipasang di GitHub Secrets."
-        )
+        raise EnvironmentError("GEMINI_API_KEY belum terpasang di environment variable / GitHub Secrets!")
 
-    supporting_str = "\n".join(f"- {hl}" for hl in supporting_headlines)
     prompt = f"""
-Kamu adalah Redaktur Eksekutif dari media pop-culture & tren anak muda Indonesia bernama "HYPE & SENTIMENT INDEX" (perpaduan gaya Folkative dan terminal Bloomberg/IDX).
-Konsep utama: Setiap tokoh, brand, atau kejadian viral diperlakukan seperti emiten saham di lantai bursa.
+Kamu adalah Chief Economist & Data Journalist dari media visual Indonesia bernama "INDEKS KERINGAT" (Labor & Purchasing Power Media).
+Misi media ini adalah membumikan harga barang viral/gadget/tiket/gaya hidup terhadap realitas jam kerja dan daya beli riil masyarakat Indonesia.
 
-Berita utama hari ini:
-- Judul: {primary_news['title']}
-- Ringkasan: {primary_news['summary']}
-- Waktu Rilis: {primary_news['published']}
+Berita / Topik Tren Hari Ini:
+- Judul: {news_item['title']}
+- Ringkasan: {news_item['summary']}
 
-Headline tren pendamping di pasar hari ini:
-{supporting_str}
+Tugasmu:
+1. Identifikasi 1 objek/barang/pengeluaran spesifik yang sedang dibahas atau relevan (misal: "iPhone 16 Pro Max 256GB", "Tiket Konser Sheila on 7 CAT 1", "Motor Vespa Sprint 150", "Biaya Hidup Anak Kos Jaksel Sebulan", "Boneka Labubu V2").
+2. Tentukan estimasi harga pasar resmi di Indonesia dalam Rupiah (integer, misal 24999000, 3500000, 42000000). Jika berita bersifat umum/makro, pilih 1 barang konsumsi viral paling representatif saat ini.
+3. Rancang naskah voiceover 55-75 kata yang PUNCHY, kritis, dan komunikatif:
+   - Kalimat pertama WAJIB HOOK detik pertama langsung menyebut nama barang & harga.
+   - Tanpa salam basa-basi robot ("Halo sobat", "Tahukah kamu").
+   - Akhiri dengan pertanyaan refleksi untuk memicu komentar netizen.
 
-ATURAN PENULISAN ANTI-AI-SLOP (WAJIB DIPATUHI):
-1. DILARANG KERAS memulai voiceover dengan kalimat klise robot/AI seperti "Halo semuanya", "Balik lagi di", "Tahukah kamu", atau "Hari ini kita akan membahas".
-2. Kalimat pertama "voiceover_script" WAJIB langsung berupa HOOK tajam di detik pertama (contoh: "Saham sentimen nama tokoh langsung terbang 18 persen pagi ini gara-gara..." atau "Panic selling melanda lantai bursa netizen setelah...").
-3. Gunakan bahasa Indonesia jurnalis muda Jakarta yang cerdas, mengalir, lugas, dan enak didengar saat dibacakan cepat (sekitar 75-95 kata, tanpa singkatan aneh atau simbol dolar di dalam voiceover_script agar pelafalan TTS mulus).
-
-Kembalikan HANYA objek JSON murni (tanpa pembungkus markdown ```json) dengan struktur kunci persis berikut:
+Kembalikan HANYA JSON murni tanpa markdown ```json dengan format persis:
 {{
-  "ticker_symbol": "Kode saham 4 huruf kapital diawali $, contoh: $AASH, $TIMN, $MUSK",
-  "entity_name": "Nama subjek/tokoh/brand utama (maks 26 karakter)",
-  "sentiment_score": 78,
-  "price_change_pct": "+14.5%",
-  "market_status": "BULLISH",
-  "verdict_action": "STRONG BUY",
-  "chart_points": [42, 48, 45, 55, 62, 70, 78],
-  "scene_highlights": [
-    "Fakta Pemicu: Ringkasan 1 kalimat padat tentang pemicu utama kehebohan ini (maks 95 karakter).",
-    "Sentimen Netizen: Ringkasan 1 kalimat tajam soal kubu pro vs kontra di medsos (maks 95 karakter).",
-    "Proyeksi Hype: Prediksi apakah tren ini bakal lanjut naik atau segera koreksi (maks 95 karakter)."
-  ],
-  "voiceover_script": "Naskah voiceover 75-95 kata dengan Hook detik pertama yang kuat, tanpa simbol $ atau tanda baca aneh.",
-  "telegram_caption": "Caption Instagram & TikTok yang engaging lengkap dengan ringkasan skor indeks dan 5 hashtag.",
+  "item_name": "Nama barang/pengeluaran spesifik (maks 30 karakter)",
+  "item_category": "Kategori singkat (misal: GADGET FLAGSHIP / TIKET KONSER / OTOMOTIF / GAYA HIDUP)",
+  "price_idr": 24999000,
+  "verdict_fomo_score": 85,
+  "verdict_label": "FOMO TINGGI",
+  "one_sentence_takeaway": "1 kalimat tajam yang menyimpulkan apakah barang ini kebutuhan riil atau sekadar gengsi sesaat.",
+  "voiceover_script": "Naskah narasi 55-75 kata bahasa Indonesia mengalir, tanpa simbol Rp atau angka jutaan yang rumit agar pelafalan TTS mulus.",
+  "telegram_caption": "Caption Instagram & TikTok yang memancing diskusi lengkap dengan perbandingan angka dan 5 hashtag.",
   "carousel_slides": [
     {{
       "slide_number": 1,
-      "tag": "BREAKING MARKET • HYPE INDEX",
-      "headline": "Judul cover slide 1 yang tajam ala headline Folkative x Bloomberg (maks 52 karakter)",
-      "body": "Subjudul padat yang menjelaskan kenapa emiten topik ini bergerak liar hari ini (maks 135 karakter).",
-      "footer_metric": "VOLUME PERBINCANGAN: EKSTREM"
+      "tag": "INDEKS KERINGAT • EDISI SPESIAL",
+      "headline": "Berapa Lama Harus Narik Ojol Buat Beli Ini?",
+      "body": "Membedah nilai riil harga barang terhadap jam kerja nyata masyarakat.",
+      "metric_label": "ESTIMASI HARGA RESMI"
     }},
     {{
       "slide_number": 2,
-      "tag": "KRONOLOGI & FUNDAMENTAL",
-      "headline": "Apa Pemicu Utamanya?",
-      "body": "Penjelasan fakta inti berita secara jernih, tanpa basa-basi (maks 210 karakter).",
-      "footer_metric": "KATALIS UTAMA HARI INI"
+      "tag": "SPESIFIKASI & NILAI BARANG",
+      "headline": "Apa yang Sebenarnya Kamu Beli?",
+      "body": "Penjelasan fakta nilai guna barang ini di mata konsumen dan pemicu viralitasnya.",
+      "metric_label": "KATALIS POPULARITAS"
     }},
     {{
       "slide_number": 3,
-      "tag": "PETA SENTIMEN NETIZEN",
-      "headline": "Respons Pasar & Komentar Publik",
-      "body": "Bedah argumen kubu pendukung vs pengkritik yang menggerakkan skor sentimen (maks 210 karakter).",
-      "footer_metric": "INDEKS SENTIMEN PUBLIK"
+      "tag": "PERSPEKTIF DRIVER OJOL",
+      "headline": "Beban Keringat di Jalanan",
+      "body": "Penghitungan riil berapa trip dan hari kerja dari matahari terbit sampai malam untuk mengumpulkan uang sejumlah ini.",
+      "metric_label": "LABA BERSIH HARIAN"
     }},
     {{
       "slide_number": 4,
-      "tag": "EFEK DOMINO INDUSTRI",
-      "headline": "Dampaknya ke Tren & Brand",
-      "body": "Bagaimana insiden atau tren ini memengaruhi reputasi tokoh/brand ke depannya (maks 210 karakter).",
-      "footer_metric": "VOLATILITAS SEKTOR"
+      "tag": "PERSPEKTIF UMR JAKARTA",
+      "headline": "Beban Upah Minimum Pekerja",
+      "body": "Berapa bulan gaji penuh yang harus disisihkan tanpa makan dan minum demi satu barang ini.",
+      "metric_label": "PORSI DARI GAJI BULANAN"
     }},
     {{
       "slide_number": 5,
-      "tag": "RADAR EMITEN TREN LAIN",
-      "headline": "Top Movers Lain di Bursa Hari Ini",
-      "body": "Rangkuman singkat 2-3 berita tren pendamping hari ini beserta arah sentimennya (maks 210 karakter).",
-      "footer_metric": "PANTAUAN INDEKS HARIAN"
+      "tag": "OPPORTUNITY COST RIIL",
+      "headline": "Bisa Dapat Apa Saja Sebenarnya?",
+      "body": "Perbandingan alternatif kebutuhan pokok riil: beras, emas, atau sewa tempat tinggal.",
+      "metric_label": "PERBANDINGAN NILAI RIIL"
     }},
     {{
       "slide_number": 6,
-      "tag": "KEPUTUSAN REDAKSI",
-      "headline": "Verdict Hype Besok: Buy, Hold, atau Sell?",
-      "body": "Rekomendasi akhir apakah topik ini layak terus diikuti (Buy/Hold) atau sudah jenuh (Sell) (maks 195 karakter).",
-      "footer_metric": "BAGIKAN KE TEMAN DISKUSIMU"
+      "tag": "KESIMPULAN REDAKSI",
+      "headline": "Worth It atau Sekadar FOMO?",
+      "body": "Refleksi apakah nilai barang ini sebanding dengan waktu dan tenaga yang kamu korbankan.",
+      "metric_label": "TULIS PENDAPATMU DI KOMENTAR"
     }}
   ]
 }}
 """.strip()
 
-    candidate_models = get_available_gemini_models()
     payload = {
         "contents": [{"parts": [{"text": prompt}]}],
-        "generationConfig": {
-            "temperature": 0.55,
-            "responseMimeType": "application/json",
-        },
+        "generationConfig": {"temperature": 0.45, "responseMimeType": "application/json"},
     }
 
-    last_error: Optional[Exception] = None
+    candidate_models = get_available_gemini_models()
     for model_name in candidate_models:
-        url = (
-            f"https://generativelanguage.googleapis.com/v1beta/models/"
-            f"{model_name}:generateContent?key={GEMINI_API_KEY}"
-        )
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={GEMINI_API_KEY}"
         try:
-            print(f"[Gemini] Mencoba analisis dengan model: {model_name}...")
-            response = requests.post(url, json=payload, timeout=60)
-            if response.status_code != 200:
-                continue
+            print(f"[Gemini] Menghitung indeks daya beli dengan model: {model_name}...")
+            res = requests.post(url, json=payload, timeout=50)
+            if res.status_code == 200:
+                raw = res.json()["candidates"][0]["content"]["parts"][0]["text"]
+                cleaned = re.sub(r"^```(?:json)?\s*|\s*```$", "", raw.strip())
+                parsed = json.loads(cleaned)
+                parsed["_model_used"] = model_name
+                print(f"[Gemini] Sukses: {parsed['item_name']} | Harga: {format_rupiah(parsed['price_idr'])}")
+                return parsed
+        except Exception:
+            continue
 
-            data = response.json()
-            raw_text = data["candidates"][0]["content"]["parts"][0]["text"]
-            cleaned_json = re.sub(r"^```(?:json)?\s*|\s*```$", "", raw_text.strip())
-            parsed: Dict[str, Any] = json.loads(cleaned_json)
-            parsed["_model_used"] = model_name
-            print(
-                f"[Gemini] Sukses ({model_name}): {parsed.get('ticker_symbol')} | "
-                f"{parsed.get('market_status')} ({parsed.get('sentiment_score')}%)"
-            )
-            return parsed
-        except Exception as exc:
-            last_error = exc
-
-    raise RuntimeError(f"Seluruh kandidat model Gemini gagal: {last_error}")
+    raise RuntimeError("Seluruh model Gemini gagal menganalisis topik ini.")
 
 
 # ==============================================================================
-# 5. MODUL VOICEOVER & SUBTITLE KARAOKE PERSISTEN
+# 5. MODUL ENGINE KALKULASI DETERMINISTIK
 # ==============================================================================
-async def _generate_voiceover_and_word_timings(
+def compute_labor_metrics(price_idr: int) -> Dict[str, Any]:
+    """Menghitung metrik jam kerja dan padanan daya beli secara deterministik."""
+    price = max(int(price_idr), 100_000)
+
+    # Metrik Ojol
+    ojol_trips = int(math.ceil(price / OJOL_NET_PER_TRIP))
+    ojol_days = int(math.ceil(price / OJOL_NET_PER_HARI))
+    ojol_hours = int(math.ceil(price / OJOL_NET_PER_JAM))
+
+    # Metrik UMR Jakarta
+    umr_days = round(price / UMR_PER_HARI, 1)
+    umr_months = round(price / UMR_JAKARTA, 1)
+    umr_pct = round((price / UMR_JAKARTA) * 100, 1)
+
+    # Metrik Fresh Graduate (Saving rate 30%)
+    freshgrad_months_save = round(price / TABUNGAN_FRESHGRAD_MO, 1)
+
+    # Opportunity Cost Alternatif
+    karung_beras = int(price // HARGA_BERAS_5KG)
+    ton_beras = round((karung_beras * 5) / 1000.0, 1)
+    gram_emas = round(price / HARGA_EMAS_ANTAM_GRAM, 1)
+    bulan_kos = round(price / SEWA_KOS_JAKARTA_MO, 1)
+
+    return {
+        "price_idr": price,
+        "price_str": format_rupiah(price),
+        "ojol_trips": ojol_trips,
+        "ojol_days": ojol_days,
+        "ojol_hours": ojol_hours,
+        "umr_days": umr_days,
+        "umr_months": umr_months,
+        "umr_pct": umr_pct,
+        "freshgrad_months_save": freshgrad_months_save,
+        "karung_beras": karung_beras,
+        "ton_beras": ton_beras,
+        "gram_emas": gram_emas,
+        "bulan_kos": bulan_kos,
+    }
+
+
+# ==============================================================================
+# 6. MODUL SUARA NATURAL & TIMING KARAOKE (EDGE-TTS)
+# ==============================================================================
+async def _generate_voiceover_stream(
     script_text: str, audio_out: Path, subtitle_out: Path
 ) -> List[Dict[str, Any]]:
-    """
-    Membuat file audio .mp3 dan mengekstrak penanda waktu setiap kata secara presisi.
-    Jika metadata WordBoundary edge-tts kosong, gunakan interpolasi durasi linear
-    sehingga kata tetap menyala berurutan (karaoke selalu aktif 100%).
-    """
-    communicate = edge_tts.Communicate(
-        text=script_text, voice=TTS_VOICE, rate=TTS_RATE
-    )
+    if edge_tts is None:
+        raise RuntimeError("Library edge-tts belum terinstall. Pastikan sudah menjalankan 'pip install edge-tts'.")
+
+    communicate = edge_tts.Communicate(text=script_text, voice=TTS_VOICE, rate=TTS_RATE)
     raw_boundaries: List[Dict[str, Any]] = []
 
     with audio_out.open("wb") as audio_file:
@@ -524,10 +545,8 @@ async def _generate_voiceover_and_word_timings(
                         }
                     )
 
-    # Fallback interpolasi linear jika edge-tts tidak mengembalikan event WordBoundary
     if not raw_boundaries:
-        # Cek durasi audio yang baru dibuat
-        dur = 30.0
+        dur = 25.0
         try:
             cmd = [
                 "ffprobe",
@@ -562,98 +581,45 @@ async def _generate_voiceover_and_word_timings(
 def generate_voiceover(
     script_text: str, audio_out: Path, subtitle_out: Path
 ) -> List[Dict[str, Any]]:
-    print(f"[Edge-TTS] Merekam voiceover dengan suara {TTS_VOICE}...")
+    print(f"[Edge-TTS] Merekam suara narasi ekspresif ({TTS_VOICE}, {TTS_RATE})...")
     timings = asyncio.run(
-        _generate_voiceover_and_word_timings(script_text, audio_out, subtitle_out)
+        _generate_voiceover_stream(script_text, audio_out, subtitle_out)
     )
-    print(
-        f"[Edge-TTS] Audio selesai ({len(timings)} penanda kata terekam untuk subtitle karaoke)."
-    )
+    print(f"[Edge-TTS] Audio selesai ({len(timings)} kata terindeks karaoke).")
     return timings
 
 
 # ==============================================================================
-# 6. KOMPONEN GRAFIS BURSA EFEK & RENDER CAROUSEL INSTAGRAM (4:5)
+# 7. KOMPONEN GRAFIS & RENDER CAROUSEL INSTAGRAM (4:5, 1080x1350)
 # ==============================================================================
-def get_status_color(market_status: str) -> Tuple[int, int, int]:
-    status_upper = (market_status or "").upper()
-    if "BULL" in status_upper or "NAIK" in status_upper or "BUY" in status_upper:
-        return COLOR_BULLISH
-    if "BEAR" in status_upper or "TURUN" in status_upper or "SELL" in status_upper:
-        return COLOR_BEARISH
-    return COLOR_NEUTRAL
-
-
-def draw_stock_chart(
-    draw: ImageDraw.ImageDraw,
-    box: Tuple[int, int, int, int],
-    points: List[int],
-    line_color: Tuple[int, int, int],
-) -> None:
-    x0, y0, x1, y1 = box
-    width = x1 - x0
-    height = y1 - y0
-
-    draw.rounded_rectangle(box, radius=20, fill=COLOR_CARD, outline=COLOR_BORDER, width=2)
-
-    for i in range(1, 4):
-        gy = y0 + int((height / 4) * i)
-        draw.line([(x0 + 24, gy), (x1 - 24, gy)], fill=COLOR_BORDER, width=1)
-
-    if not points or len(points) < 2:
-        points = [45, 50, 48, 60, 65, 72, 78]
-
-    min_val = min(points)
-    max_val = max(points)
-    span = max(max_val - min_val, 10)
-
-    pad_x = 45
-    pad_y = 38
-    usable_w = width - (pad_x * 2)
-    usable_h = height - (pad_y * 2)
-
-    coords: List[Tuple[int, int]] = []
-    for idx, val in enumerate(points):
-        px = x0 + pad_x + int((idx / (len(points) - 1)) * usable_w)
-        norm = (val - min_val) / span
-        py = y1 - pad_y - int(norm * usable_h)
-        coords.append((px, py))
-
-    draw.line(coords, fill=line_color, width=6, joint="curve")
-
-    for idx, (px, py) in enumerate(coords):
-        radius = 9 if idx == len(coords) - 1 else 5
-        draw.ellipse(
-            (px - radius, py - radius, px + radius, py + radius),
-            fill=line_color,
-            outline=COLOR_TEXT_MAIN,
-            width=2,
-        )
-
-
 def render_carousel_slides(
-    analysis: Dict[str, Any], hero_photo: Optional[Image.Image], out_dir: Path
+    analysis: Dict[str, Any],
+    metrics: Dict[str, Any],
+    hero_photo: Optional[Image.Image],
+    out_dir: Path,
 ) -> List[Path]:
     out_dir.mkdir(parents=True, exist_ok=True)
     slides_data = analysis.get("carousel_slides", [])
     total_slides = len(slides_data)
 
-    ticker = analysis.get("ticker_symbol", "$TREN")
-    entity_name = analysis.get("entity_name", "Topik Viral Hari Ini")
-    score = analysis.get("sentiment_score", 75)
-    pct = analysis.get("price_change_pct", "+12.0%")
-    status = analysis.get("market_status", "BULLISH").upper()
-    chart_points = analysis.get("chart_points", [40, 45, 50, 58, 63, 70, int(score)])
+    item_name = analysis.get("item_name", "Barang Viral")
+    price_str = metrics["price_str"]
+    ojol_trips = metrics["ojol_trips"]
+    ojol_days = metrics["ojol_days"]
+    umr_months = metrics["umr_months"]
+    umr_days = metrics["umr_days"]
+    karung_beras = metrics["karung_beras"]
+    gram_emas = metrics["gram_emas"]
+    bulan_kos = metrics["bulan_kos"]
 
-    status_color = get_status_color(status)
-
-    font_ticker = load_font(32, bold=True)
-    font_badge = load_font(25, bold=True)
-    font_tag = load_font(23, bold=True)
-    font_headline = load_font(50, bold=True)
-    font_body = load_font(34, bold=False)
-    font_metric = load_font(25, bold=True)
-    font_footer = load_font(23, bold=False)
+    font_badge = load_font(26, bold=True)
+    font_tag = load_font(24, bold=True)
+    font_headline = load_font(48, bold=True)
+    font_body = load_font(32, bold=False)
+    font_price = load_font(68, bold=True)
+    font_metric_val = load_font(52, bold=True)
+    font_metric_lbl = load_font(25, bold=False)
+    font_footer = load_font(22, bold=False)
 
     generated_files: List[Path] = []
     today_str = datetime.datetime.now().strftime("%d %b %Y").upper()
@@ -661,102 +627,128 @@ def render_carousel_slides(
     for idx, slide in enumerate(slides_data, start=1):
         img = Image.new("RGB", (CAROUSEL_WIDTH, CAROUSEL_HEIGHT), color=COLOR_BG)
 
+        # Header Image Banner pada slide 1
         if idx == 1 and hero_photo is not None:
-            banner = crop_and_zoom_photo(
-                hero_photo, CAROUSEL_WIDTH, 620, zoom_factor=1.02, darken=0.62
-            )
+            banner = crop_and_banner_photo(hero_photo, CAROUSEL_WIDTH, 560, darken=0.60)
             img.paste(banner, (0, 0))
 
         draw = ImageDraw.Draw(img)
 
-        # Header Bar Terminal
-        header_box = (60, 50, CAROUSEL_WIDTH - 60, 145)
-        draw.rounded_rectangle(
-            header_box, radius=18, fill=COLOR_CARD, outline=COLOR_BORDER, width=2
-        )
-        draw.text(
-            (88, 80),
-            f"{ticker} • {entity_name[:20].upper()}",
-            font=font_ticker,
-            fill=COLOR_TEXT_MAIN,
-        )
+        # Header Bar Media
+        draw.rounded_rectangle((60, 50, CAROUSEL_WIDTH - 60, 140), radius=16, fill=COLOR_CARD, outline=COLOR_BORDER, width=2)
+        draw.text((88, 76), "INDEKS KERINGAT • DATA RUPIAH", font=font_badge, fill=COLOR_ACCENT)
+        draw.rounded_rectangle((CAROUSEL_WIDTH - 380, 68, CAROUSEL_WIDTH - 85, 122), radius=10, fill=COLOR_EMERALD)
+        draw.text((CAROUSEL_WIDTH - 360, 80), "ANALISIS DAYA BELI", font=font_badge, fill=COLOR_BG)
 
-        badge_text = f"{status} {pct} ({score}%)"
-        badge_w = 340
-        badge_box = (CAROUSEL_WIDTH - 85 - badge_w, 68, CAROUSEL_WIDTH - 85, 127)
-        draw.rounded_rectangle(badge_box, radius=12, fill=status_color)
-        draw.text(
-            (CAROUSEL_WIDTH - 85 - badge_w + 20, 83),
-            badge_text,
-            font=font_badge,
-            fill=COLOR_BG,
-        )
+        curr_y = 440 if (idx == 1 and hero_photo is not None) else 190
 
-        curr_y = 430 if (idx == 1 and hero_photo is not None) else 195
-
-        slide_tag = slide.get("tag", f"ANALISIS PASAR #{idx}").upper()
-        draw.text((70, curr_y), slide_tag, font=font_tag, fill=COLOR_ACCENT)
+        # Slide Tag
+        slide_tag = slide.get("tag", f"BAGIAN #{idx}").upper()
+        draw.text((70, curr_y), slide_tag, font=font_tag, fill=COLOR_CYBER_GOLD)
         curr_y += 42
 
-        headline_text = slide.get("headline", "Update Pergerakan Hype Hari Ini")
-        wrapped_headline = textwrap.wrap(headline_text, width=27)[:3]
-        for line in wrapped_headline:
+        # Headline
+        headline_text = slide.get("headline", "Kalkulasi Nilai Riil")
+        for line in textwrap.wrap(headline_text, width=28)[:3]:
             draw.text((70, curr_y), line, font=font_headline, fill=COLOR_TEXT_MAIN)
-            curr_y += 62
+            curr_y += 58
 
-        curr_y += 20
+        curr_y += 18
 
+        # Konten Dinamis Berdasarkan Nomor Slide
         if idx == 1:
-            chart_h = 260 if hero_photo is not None else 340
-            chart_box = (70, curr_y, CAROUSEL_WIDTH - 70, curr_y + chart_h)
-            draw_stock_chart(draw, chart_box, chart_points, status_color)
-            curr_y += chart_h + 25
+            # Box Harga Utama
+            p_box = (70, curr_y, CAROUSEL_WIDTH - 70, curr_y + 190)
+            draw.rounded_rectangle(p_box, radius=20, fill=COLOR_CARD, outline=COLOR_EMERALD, width=3)
+            draw.text((105, curr_y + 25), f"OBJEK: {item_name.upper()}", font=font_tag, fill=COLOR_TEXT_MUTED)
+            draw.text((105, curr_y + 75), price_str, font=font_price, fill=COLOR_CYBER_GOLD)
+            curr_y += 215
 
-        body_text = slide.get("body", "")
-        wrapped_body = textwrap.wrap(body_text, width=42)[:6]
-        card_height = max(200, len(wrapped_body) * 48 + 65)
-        body_bottom = min(curr_y + card_height, 1150)
-        body_box = (70, curr_y, CAROUSEL_WIDTH - 70, body_bottom)
-        draw.rounded_rectangle(
-            body_box, radius=20, fill=COLOR_CARD, outline=COLOR_BORDER, width=2
-        )
-        draw.rounded_rectangle(
-            (70, curr_y, 84, body_bottom), radius=6, fill=status_color
-        )
+            # Dua Pilar Mini (Ojol vs UMR)
+            w_col = (CAROUSEL_WIDTH - 140 - 25) // 2
+            # Kolom Kiri: Ojol
+            box_l = (70, curr_y, 70 + w_col, curr_y + 240)
+            draw.rounded_rectangle(box_l, radius=18, fill=COLOR_CARD_ALT, outline=COLOR_OJOL, width=2)
+            draw.text((95, curr_y + 25), "🛵 DRIVER OJOL", font=font_badge, fill=COLOR_OJOL)
+            draw.text((95, curr_y + 75), f"{ojol_trips:,} Trip".replace(",", "."), font=font_metric_val, fill=COLOR_TEXT_MAIN)
+            draw.text((95, curr_y + 155), f"Setara {ojol_days} hari narik penuh", font=font_metric_lbl, fill=COLOR_TEXT_MUTED)
 
-        text_y = curr_y + 32
-        for line in wrapped_body:
-            if text_y + 40 < body_bottom:
-                draw.text((112, text_y), line, font=font_body, fill=COLOR_TEXT_MAIN)
-                text_y += 46
+            # Kolom Kanan: UMR
+            box_r = (70 + w_col + 25, curr_y, CAROUSEL_WIDTH - 70, curr_y + 240)
+            draw.rounded_rectangle(box_r, radius=18, fill=COLOR_CARD_ALT, outline=COLOR_ACCENT, width=2)
+            draw.text((70 + w_col + 50, curr_y + 25), "💼 PEKERJA UMR", font=font_badge, fill=COLOR_ACCENT)
+            draw.text((70 + w_col + 50, curr_y + 75), f"{umr_months} Bulan", font=font_metric_val, fill=COLOR_TEXT_MAIN)
+            draw.text((70 + w_col + 50, curr_y + 155), f"Setara {umr_days} hari kerja", font=font_metric_lbl, fill=COLOR_TEXT_MUTED)
 
-        footer_metric = slide.get("footer_metric", "HYPE & SENTIMENT INDEX").upper()
-        draw.text((70, 1185), f"⚡ {footer_metric}", font=font_metric, fill=status_color)
+        elif idx == 3:
+            # Breakdown Ojol Detail
+            box = (70, curr_y, CAROUSEL_WIDTH - 70, curr_y + 440)
+            draw.rounded_rectangle(box, radius=22, fill=COLOR_CARD, outline=COLOR_OJOL, width=3)
+            draw.text((105, curr_y + 35), "HITUNG-HITUNGAN KERINGAT DRIVER OJOL", font=font_tag, fill=COLOR_OJOL)
+            draw.text((105, curr_y + 90), f"Total Order: {ojol_trips:,} Trip".replace(",", "."), font=font_metric_val, fill=COLOR_CYBER_GOLD)
+            draw.text((105, curr_y + 175), f"• Estimasi Waktu di Jalan: {metrics['ojol_hours']} Jam Aktif", font=font_body, fill=COLOR_TEXT_MAIN)
+            draw.text((105, curr_y + 235), f"• Hari Narik (Target 12-14 Trip/Hari): {ojol_days} Hari Penuh", font=font_body, fill=COLOR_TEXT_MAIN)
+            draw.text((105, curr_y + 295), f"• Basis Pendapatan Bersih: Rp 12.500 per Trip", font=font_body, fill=COLOR_TEXT_MUTED)
+            draw.text((105, curr_y + 355), "Tanpa libur, bensin, dan potongan aplikasi.", font=font_body, fill=COLOR_AMBER)
+            curr_y += 465
 
-        draw.line([(70, 1240), (CAROUSEL_WIDTH - 70, 1240)], fill=COLOR_BORDER, width=2)
-        draw.text(
-            (70, 1265),
-            f"HYPE & SENTIMENT INDEX • {today_str}",
-            font=font_footer,
-            fill=COLOR_TEXT_MUTED,
-        )
-        draw.text(
-            (CAROUSEL_WIDTH - 220, 1265),
-            f"SLIDE {idx} / {total_slides}  →",
-            font=font_footer,
-            fill=COLOR_TEXT_MAIN,
-        )
+        elif idx == 4:
+            # Breakdown UMR Jakarta Detail
+            box = (70, curr_y, CAROUSEL_WIDTH - 70, curr_y + 440)
+            draw.rounded_rectangle(box, radius=22, fill=COLOR_CARD, outline=COLOR_ACCENT, width=3)
+            draw.text((105, curr_y + 35), "PERSPEKTIF PEKERJA UMR JAKARTA", font=font_tag, fill=COLOR_ACCENT)
+            draw.text((105, curr_y + 90), f"{umr_months} Bulan Gaji Penuh", font=font_metric_val, fill=COLOR_CYBER_GOLD)
+            draw.text((105, curr_y + 175), f"• Porsi dari Upah Sebulan: {metrics['umr_pct']}%", font=font_body, fill=COLOR_TEXT_MAIN)
+            draw.text((105, curr_y + 235), f"• Jam Kerja Formal: {int(umr_days * 8)} Jam Kerja Kantor", font=font_body, fill=COLOR_TEXT_MAIN)
+            draw.text((105, curr_y + 295), f"• Basis UMR DKI Jakarta: Rp 5.067.381/bulan", font=font_body, fill=COLOR_TEXT_MUTED)
+            draw.text((105, curr_y + 355), "Kondisi: 100% gaji disisihkan tanpa makan/minum.", font=font_body, fill=COLOR_AMBER)
+            curr_y += 465
 
-        slide_path = out_dir / f"slide_{idx:02d}.png"
-        img.save(slide_path, format="PNG", optimize=True)
-        generated_files.append(slide_path)
+        elif idx == 5:
+            # Opportunity Cost Alternatif
+            box = (70, curr_y, CAROUSEL_WIDTH - 70, curr_y + 440)
+            draw.rounded_rectangle(box, radius=22, fill=COLOR_CARD, outline=COLOR_EMERALD, width=3)
+            draw.text((105, curr_y + 35), "UANG INI SETARA DENGAN KEBUTUHAN APA?", font=font_tag, fill=COLOR_EMERALD)
+            draw.text((105, curr_y + 95), f"🍚 {karung_beras} Karung Beras 5kg ({metrics['ton_beras']} Ton Beras)", font=font_body, fill=COLOR_TEXT_MAIN)
+            draw.text((105, curr_y + 165), f"🥇 {gram_emas} Gram Emas Antam Murni", font=font_body, fill=COLOR_TEXT_MAIN)
+            draw.text((105, curr_y + 235), f"🏠 {bulan_kos} Bulan Sewa Kos Standar Jakarta", font=font_body, fill=COLOR_TEXT_MAIN)
+            draw.text((105, curr_y + 305), f"📈 {metrics['freshgrad_months_save']} Bulan Tabungan Disiplin Fresh Graduate", font=font_body, fill=COLOR_CYBER_GOLD)
+            draw.text((105, curr_y + 370), "Pilihan ada di tanganmu: Konsumtif atau Produktif?", font=font_body, fill=COLOR_TEXT_MUTED)
+            curr_y += 465
 
-    print(f"[Pillow] Berhasil merender {len(generated_files)} slide carousel editorial.")
+        else:
+            # Slide Narasi Umum / Kesimpulan
+            body_text = slide.get("body", "")
+            wrapped = textwrap.wrap(body_text, width=42)[:7]
+            box_h = max(220, len(wrapped) * 48 + 70)
+            box = (70, curr_y, CAROUSEL_WIDTH - 70, curr_y + box_h)
+            draw.rounded_rectangle(box, radius=20, fill=COLOR_CARD, outline=COLOR_BORDER, width=2)
+            draw.rounded_rectangle((70, curr_y, 84, curr_y + box_h), radius=6, fill=COLOR_CYBER_GOLD)
+
+            ty = curr_y + 35
+            for line in wrapped:
+                draw.text((115, ty), line, font=font_body, fill=COLOR_TEXT_MAIN)
+                ty += 48
+            curr_y += box_h + 30
+
+        # Footer Metric Bar
+        metric_lbl = slide.get("metric_label", "INDEKS KERINGAT").upper()
+        draw.text((70, 1180), f"⚡ {metric_lbl}", font=font_badge, fill=COLOR_EMERALD)
+
+        draw.line([(70, 1235), (CAROUSEL_WIDTH - 70, 1235)], fill=COLOR_BORDER, width=2)
+        draw.text((70, 1260), f"INDEKS KERINGAT • {today_str}", font=font_footer, fill=COLOR_TEXT_MUTED)
+        draw.text((CAROUSEL_WIDTH - 220, 1260), f"SLIDE {idx} / {total_slides}  →", font=font_footer, fill=COLOR_TEXT_MAIN)
+
+        slide_file = out_dir / f"slide_{idx:02d}.png"
+        img.save(slide_file, format="PNG", optimize=True)
+        generated_files.append(slide_file)
+
+    print(f"[Pillow] Berhasil merender {len(generated_files)} slide infografis Indeks Keringat.")
     return generated_files
 
 
 # ==============================================================================
-# 7. MODUL RENDER VIDEO MULTI-SCENE + KARAOKE SUBTITLE + AUDIO BGM & WHOOSH
+# 8. RENDER VIDEO VERTIKAL ANIMASI KALKULATOR (9:16, 1080x1920)
 # ==============================================================================
 def get_audio_duration(audio_path: Path) -> float:
     cmd = [
@@ -769,30 +761,23 @@ def get_audio_duration(audio_path: Path) -> float:
         "default=noprint_wrappers=1:nokey=1",
         str(audio_path),
     ]
-    result = subprocess.run(cmd, capture_output=True, text=True, check=True)
     try:
-        return max(float(result.stdout.strip()), 5.0)
-    except ValueError:
-        return 30.0
+        res = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        return max(float(res.stdout.strip()), 5.0)
+    except Exception:
+        return 25.0
 
 
 def draw_karaoke_subtitle_box(
     draw: ImageDraw.ImageDraw,
     word_timings: List[Dict[str, Any]],
     current_sec: float,
-    status_color: Tuple[int, int, int],
     font_sub: ImageFont.FreeTypeFont,
 ) -> None:
-    """
-    Menampilkan kata-kata dengan karaoke highlighting: kata yang sedang diucapkan
-    menyala kuning emas (#FACC15) dengan ukuran tegas di tengah bawah layar.
-    """
-    sub_box = (65, 1400, VIDEO_WIDTH - 65, 1690)
-    draw.rounded_rectangle(
-        sub_box, radius=24, fill=(15, 21, 36), outline=status_color, width=3
-    )
+    sub_box = (65, 1420, VIDEO_WIDTH - 65, 1700)
+    draw.rounded_rectangle(sub_box, radius=24, fill=(15, 23, 42), outline=COLOR_EMERALD, width=3)
 
-    group_size = 6
+    group_size = 5
     active_idx = 0
     for i, item in enumerate(word_timings):
         if item["start"] <= current_sec <= item["end"] + 0.15:
@@ -808,33 +793,22 @@ def draw_karaoke_subtitle_box(
         for idx, w in enumerate(group_slice)
     ]
 
-    lines: List[List[Tuple[str, bool]]] = [[]]
-    curr_char_len = 0
+    full_line = " ".join(t[0] for t in tokens)
+    bbox = draw.textbbox((0, 0), full_line, font=font_sub)
+    line_w = bbox[2] - bbox[0]
+    curr_x = (VIDEO_WIDTH - line_w) // 2
+    curr_y = 1530
+
     for word_str, is_active in tokens:
-        if curr_char_len + len(word_str) > 20 and len(lines) < 2:
-            lines.append([])
-            curr_char_len = 0
-        lines[-1].append((word_str, is_active))
-        curr_char_len += len(word_str) + 1
-
-    start_y = 1460 if len(lines) == 2 else 1515
-    for line_tokens in lines:
-        full_line_str = " ".join(t[0] for t in line_tokens)
-        line_bbox = draw.textbbox((0, 0), full_line_str, font=font_sub)
-        line_w = line_bbox[2] - line_bbox[0]
-        curr_x = (VIDEO_WIDTH - line_w) // 2
-
-        for word_str, is_active in line_tokens:
-            word_color = COLOR_HIGHLIGHT if is_active else COLOR_TEXT_MAIN
-            draw.text((curr_x, start_y), word_str, font=font_sub, fill=word_color)
-            w_bbox = draw.textbbox((0, 0), word_str + " ", font=font_sub)
-            curr_x += w_bbox[2] - w_bbox[0]
-
-        start_y += 66
+        color = COLOR_CYBER_GOLD if is_active else COLOR_TEXT_MAIN
+        draw.text((curr_x, curr_y), word_str, font=font_sub, fill=color)
+        w_bbox = draw.textbbox((0, 0), word_str + " ", font=font_sub)
+        curr_x += w_bbox[2] - w_bbox[0]
 
 
 def render_vertical_video(
     analysis: Dict[str, Any],
+    metrics: Dict[str, Any],
     hero_photo: Optional[Image.Image],
     word_timings: List[Dict[str, Any]],
     audio_path: Path,
@@ -847,261 +821,93 @@ def render_vertical_video(
     fps = 12
     total_frames = int(math.ceil(duration * fps))
 
-    ticker = analysis.get("ticker_symbol", "$TREN")
-    entity_name = analysis.get("entity_name", "Topik Viral Indonesia")
-    score = int(analysis.get("sentiment_score", 78))
-    pct = analysis.get("price_change_pct", "+14.5%")
-    status = analysis.get("market_status", "BULLISH").upper()
-    verdict = analysis.get("verdict_action", "HOLD / WATCH").upper()
-    raw_points = analysis.get("chart_points", [40, 46, 52, 58, 64, 71, score])
-    scene_highlights = analysis.get(
-        "scene_highlights",
-        [
-            "Fakta Utama: Pergerakan topik ini memicu lonjakan diskusi publik.",
-            "Sentimen Netizen: Mayoritas warganet memberikan respons kuat di media sosial.",
-            "Proyeksi Indeks: Volatilitas diperkirakan masih tinggi hingga besok.",
-        ],
-    )
+    item_name = analysis.get("item_name", "Barang Viral")
+    price_target = metrics["price_idr"]
+    target_trips = metrics["ojol_trips"]
+    target_umr_mo = metrics["umr_months"]
 
-    status_color = get_status_color(status)
+    font_header = load_font(34, bold=True)
+    font_badge = load_font(26, bold=True)
+    font_item = load_font(46, bold=True)
+    font_counter = load_font(74, bold=True)
+    font_card_val = load_font(50, bold=True)
+    font_card_lbl = load_font(26, bold=False)
+    font_sub = load_font(42, bold=True)
+    font_small = load_font(24, bold=False)
 
-    font_header = load_font(36, bold=True)
-    font_scene_tag = load_font(26, bold=True)
-    font_title = load_font(48, bold=True)
-    font_score = load_font(84, bold=True)
-    font_card_body = load_font(34, bold=False)
-    font_sub = load_font(44, bold=True)
-    font_small = load_font(26, bold=False)
-
-    interp_points: List[float] = []
-    steps_per_seg = max(total_frames // max(len(raw_points) - 1, 1), 1)
-    for i in range(len(raw_points) - 1):
-        start_v = float(raw_points[i])
-        end_v = float(raw_points[i + 1])
-        for s in range(steps_per_seg):
-            t = s / float(steps_per_seg)
-            interp_points.append(start_v + (end_v - start_v) * t)
-    while len(interp_points) < total_frames:
-        interp_points.append(float(raw_points[-1]))
-
-    headline = (
-        analysis.get("carousel_slides", [{}])[0].get(
-            "headline", f"Pergerakan Sentimen {entity_name}"
-        )
-    )
-    wrapped_title = textwrap.wrap(headline, width=25)[:3]
-
-    print(
-        f"[Video] Merender {total_frames} frame Multi-Scene ({duration:.1f} dtk @ {fps} fps)..."
-    )
+    print(f"[Video] Merender {total_frames} frame animasi kalkulator ({duration:.1f} dtk @ {fps} fps)...")
 
     for f_idx in range(total_frames):
         current_sec = f_idx / float(fps)
         progress = f_idx / float(max(total_frames - 1, 1))
 
-        if progress < 0.34:
-            scene_num = 1
-            scene_label = "BABAK 1/3 • BREAKING MARKET FLASH"
-        elif progress < 0.68:
-            scene_num = 2
-            scene_label = "BABAK 2/3 • GRAFIK & KRONOLOGI INTI"
-        else:
-            scene_num = 3
-            scene_label = "BABAK 3/3 • REAKSI NETIZEN & VERDICT"
+        # Animasi penghitung counter (angka naik dinamis)
+        anim_factor = min(1.0, progress * 1.6)
+        curr_price = int(price_target * (anim_factor ** 2))
+        curr_trips = int(target_trips * (anim_factor ** 2))
+        curr_umr_mo = round(target_umr_mo * (anim_factor ** 2), 1)
 
         img = Image.new("RGB", (VIDEO_WIDTH, VIDEO_HEIGHT), color=COLOR_BG)
 
-        # Efek Ken Burns Zoom-In Halus pada Foto Berita
-        zoom_factor = 1.0 + (progress * 0.16)
-        darken_level = 0.68 if scene_num == 1 else 0.45
-        top_photo_banner = crop_and_zoom_photo(
-            hero_photo, VIDEO_WIDTH, 840, zoom_factor=zoom_factor, darken=darken_level
-        )
-        img.paste(top_photo_banner, (0, 0))
+        # Foto Header
+        banner = crop_and_banner_photo(hero_photo, VIDEO_WIDTH, 720, darken=0.62)
+        img.paste(banner, (0, 0))
 
         draw = ImageDraw.Draw(img)
 
-        # Header Bar ala Terminal Bloomberg
-        draw.rounded_rectangle(
-            (60, 75, VIDEO_WIDTH - 60, 180),
-            radius=18,
-            fill=COLOR_CARD,
-            outline=COLOR_BORDER,
-            width=2,
-        )
-        draw.text(
-            (90, 108),
-            f"IDX-HYPE • {ticker}",
-            font=font_header,
-            fill=COLOR_ACCENT,
-        )
-        draw.rounded_rectangle(
-            (VIDEO_WIDTH - 345, 95, VIDEO_WIDTH - 85, 160),
-            radius=12,
-            fill=status_color,
-        )
-        draw.text(
-            (VIDEO_WIDTH - 322, 108),
-            f"{status} {pct}",
-            font=font_header,
-            fill=COLOR_BG,
-        )
+        # Header Bar
+        draw.rounded_rectangle((60, 75, VIDEO_WIDTH - 60, 175), radius=18, fill=COLOR_CARD, outline=COLOR_BORDER, width=2)
+        draw.text((95, 105), "INDEKS KERINGAT", font=font_header, fill=COLOR_CYBER_GOLD)
+        draw.rounded_rectangle((VIDEO_WIDTH - 380, 95, VIDEO_WIDTH - 85, 155), radius=12, fill=COLOR_EMERALD)
+        draw.text((VIDEO_WIDTH - 355, 108), "DATA RUPIAH", font=font_header, fill=COLOR_BG)
 
-        draw.rounded_rectangle(
-            (65, 210, 560, 262), radius=10, fill=COLOR_CARD_ALT, outline=COLOR_ACCENT, width=1
-        )
-        draw.text((85, 222), scene_label, font=font_scene_tag, fill=COLOR_ACCENT)
+        # Tag Judul & Nama Barang
+        draw.rounded_rectangle((65, 205, 480, 255), radius=10, fill=COLOR_CARD_ALT, outline=COLOR_ACCENT, width=1)
+        draw.text((85, 217), "KALKULASI DAYA BELI RIIL", font=font_badge, fill=COLOR_ACCENT)
 
-        ty = 285
-        for line in wrapped_title:
-            draw.text((65, ty), line, font=font_title, fill=COLOR_TEXT_MAIN)
-            ty += 60
+        draw.text((65, 275), item_name.upper(), font=font_item, fill=COLOR_TEXT_MAIN)
 
-        current_val = int(round(interp_points[f_idx]))
+        # Counter Box Animasi Rupiah
+        p_card = (65, 470, VIDEO_WIDTH - 65, 680)
+        draw.rounded_rectangle(p_card, radius=24, fill=COLOR_CARD, outline=COLOR_EMERALD, width=3)
+        draw.text((100, 495), "HARGA BARANG:", font=font_badge, fill=COLOR_TEXT_MUTED)
+        draw.text((100, 550), format_rupiah(curr_price), font=font_counter, fill=COLOR_CYBER_GOLD)
 
-        if scene_num == 1:
-            score_card = (65, 680, VIDEO_WIDTH - 65, 950)
-            draw.rounded_rectangle(
-                score_card, radius=24, fill=COLOR_CARD, outline=status_color, width=3
-            )
-            draw.text(
-                (105, 715),
-                f"EMITEN TREN: {entity_name.upper()}",
-                font=font_scene_tag,
-                fill=COLOR_TEXT_MUTED,
-            )
-            draw.text(
-                (105, 765),
-                f"{current_val}%",
-                font=font_score,
-                fill=status_color,
-            )
-            draw.text(
-                (390, 790),
-                f"Perubahan: {pct}\nStatus: {status}",
-                font=font_header,
-                fill=COLOR_TEXT_MAIN,
-            )
+        # Dua Kartu Utama: Ojol vs UMR
+        # 1. Kartu Ojol
+        card_ojol = (65, 720, VIDEO_WIDTH - 65, 960)
+        draw.rounded_rectangle(card_ojol, radius=22, fill=COLOR_CARD_ALT, outline=COLOR_OJOL, width=3)
+        draw.text((105, 750), "🛵 BERAPA ORDERAN DRIVER OJOL?", font=font_badge, fill=COLOR_OJOL)
+        draw.text((105, 805), f"{curr_trips:,} TRIP".replace(",", "."), font=font_card_val, fill=COLOR_TEXT_MAIN)
+        draw.text((105, 890), f"Setara {metrics['ojol_days']} hari kerja penuh dari pagi sampai malam", font=font_card_lbl, fill=COLOR_TEXT_MUTED)
 
-            hl_box = (65, 990, VIDEO_WIDTH - 65, 1360)
-            draw.rounded_rectangle(
-                hl_box, radius=22, fill=COLOR_CARD, outline=COLOR_BORDER, width=2
-            )
-            draw.text(
-                (105, 1030),
-                "📌 PEMICU PERGERAKAN PASAR HARI INI",
-                font=font_scene_tag,
-                fill=COLOR_HIGHLIGHT,
-            )
-            hl_lines = textwrap.wrap(scene_highlights[0], width=38)[:4]
-            hy = 1090
-            for hline in hl_lines:
-                draw.text((105, hy), hline, font=font_card_body, fill=COLOR_TEXT_MAIN)
-                hy += 50
+        # 2. Kartu UMR Jakarta
+        card_umr = (65, 1000, VIDEO_WIDTH - 65, 1240)
+        draw.rounded_rectangle(card_umr, radius=22, fill=COLOR_CARD_ALT, outline=COLOR_ACCENT, width=3)
+        draw.text((105, 1030), "💼 BERAPA BULAN GAJI UMR JAKARTA?", font=font_badge, fill=COLOR_ACCENT)
+        draw.text((105, 1085), f"{curr_umr_mo} BULAN GAJI", font=font_card_val, fill=COLOR_TEXT_MAIN)
+        draw.text((105, 1170), f"Setara {metrics['umr_days']} hari kerja keras tanpa biaya hidup", font=font_card_lbl, fill=COLOR_TEXT_MUTED)
 
-        elif scene_num == 2:
-            visible_slice = interp_points[: max(2, f_idx + 1)]
-            step = max(1, len(visible_slice) // 12)
-            sampled = [int(v) for v in visible_slice[::step]]
-            if sampled[-1] != int(visible_slice[-1]):
-                sampled.append(int(visible_slice[-1]))
+        # Subtitle Karaoke
+        draw_karaoke_subtitle_box(draw, word_timings, current_sec, font_sub)
 
-            chart_box = (65, 540, VIDEO_WIDTH - 65, 1020)
-            draw_stock_chart(draw, chart_box, sampled, status_color)
-            draw.text(
-                (100, 565),
-                f"LIVE CHART {ticker} • SKOR SAAT INI: {current_val}%",
-                font=font_scene_tag,
-                fill=COLOR_TEXT_MAIN,
-            )
-
-            hl_box = (65, 1055, VIDEO_WIDTH - 65, 1365)
-            draw.rounded_rectangle(
-                hl_box, radius=22, fill=COLOR_CARD, outline=COLOR_BORDER, width=2
-            )
-            draw.text(
-                (105, 1090),
-                "💬 PETA SENTIMEN & REAKSI NETIZEN",
-                font=font_scene_tag,
-                fill=COLOR_ACCENT,
-            )
-            hl2_text = scene_highlights[1] if len(scene_highlights) > 1 else scene_highlights[0]
-            hl_lines = textwrap.wrap(hl2_text, width=38)[:4]
-            hy = 1145
-            for hline in hl_lines:
-                draw.text((105, hy), hline, font=font_card_body, fill=COLOR_TEXT_MAIN)
-                hy += 48
-
-        else:
-            verdict_box = (65, 560, VIDEO_WIDTH - 65, 920)
-            draw.rounded_rectangle(
-                verdict_box, radius=24, fill=COLOR_CARD_ALT, outline=status_color, width=4
-            )
-            draw.text(
-                (105, 600),
-                "KEPUTUSAN REDAKSI HYPE INDEX:",
-                font=font_scene_tag,
-                fill=COLOR_TEXT_MUTED,
-            )
-            draw.text(
-                (105, 655),
-                verdict,
-                font=font_score,
-                fill=COLOR_HIGHLIGHT,
-            )
-            draw.text(
-                (105, 785),
-                f"Skor Penutupan: {score}% ({status} {pct})",
-                font=font_header,
-                fill=status_color,
-            )
-
-            hl_box = (65, 960, VIDEO_WIDTH - 65, 1365)
-            draw.rounded_rectangle(
-                hl_box, radius=22, fill=COLOR_CARD, outline=COLOR_BORDER, width=2
-            )
-            draw.text(
-                (105, 1000),
-                "🔮 PROYEKSI TREN & KESIMPULAN PASAR",
-                font=font_scene_tag,
-                fill=COLOR_BULLISH,
-            )
-            hl3_text = scene_highlights[2] if len(scene_highlights) > 2 else scene_highlights[-1]
-            hl_lines = textwrap.wrap(hl3_text, width=38)[:4]
-            hy = 1060
-            for hline in hl_lines:
-                draw.text((105, hy), hline, font=font_card_body, fill=COLOR_TEXT_MAIN)
-                hy += 50
-
-        draw_karaoke_subtitle_box(
-            draw=draw,
-            word_timings=word_timings,
-            current_sec=current_sec,
-            status_color=status_color,
-            font_sub=font_sub,
-        )
-
-        bar_bg = (65, 1735, VIDEO_WIDTH - 65, 1751)
-        bar_fg = (65, 1735, 65 + int((VIDEO_WIDTH - 130) * progress), 1751)
+        # Progress bar bawah
+        bar_bg = (65, 1740, VIDEO_WIDTH - 65, 1756)
+        bar_fg = (65, 1740, 65 + int((VIDEO_WIDTH - 130) * progress), 1756)
         draw.rounded_rectangle(bar_bg, radius=8, fill=COLOR_CARD)
-        draw.rounded_rectangle(bar_fg, radius=8, fill=status_color)
+        draw.rounded_rectangle(bar_fg, radius=8, fill=COLOR_CYBER_GOLD)
 
-        draw.text(
-            (65, 1775),
-            "HYPE & SENTIMENT INDEX • REAL NEWS & DATA TERMINAL",
-            font=font_small,
-            fill=COLOR_TEXT_MUTED,
-        )
+        draw.text((65, 1780), "INDEKS KERINGAT • DATA STORYTELLING MEDIA", font=font_small, fill=COLOR_TEXT_MUTED)
 
-        frame_file = frames_dir / f"frame_{f_idx:04d}.png"
-        img.save(frame_file, format="PNG")
+        frame_path = frames_dir / f"frame_{f_idx:04d}.png"
+        img.save(frame_path, format="PNG")
 
-    # Filter Audio: Voiceover + Background Lofi Synth Beats + Sound Effect Transisi Whoosh
+    # Sintesis Audio: Voiceover + Dinamis Lofi Beat Bass & Sound Effect Kaching
     filter_complex = (
-        f"[1:a]volume=1.2[vocal];"
-        f"aevalsrc='0.035*sin(2*PI*130*t)*exp(-2*mod(t,0.5))':s=44100:d={duration}[kick];"
-        f"aevalsrc='0.02*sin(2*PI*261.63*t)+0.015*sin(2*PI*329.63*t)':s=44100:d={duration}[pad];"
-        f"[kick][pad]amix=inputs=2[bgm];"
+        f"[1:a]volume=1.25[vocal];"
+        f"aevalsrc='0.04*sin(2*PI*120*t)*exp(-2*mod(t,0.5))':s=44100:d={duration}[kick];"
+        f"aevalsrc='0.015*sin(2*PI*330*t)+0.01*sin(2*PI*392*t)':s=44100:d={duration}[melody];"
+        f"[kick][melody]amix=inputs=2[bgm];"
         f"[vocal][bgm]amix=inputs=2:duration=first:dropout_transition=2[aout]"
     )
 
@@ -1136,140 +942,120 @@ def render_vertical_video(
         str(video_out),
     ]
 
-    print("[FFmpeg] Merender video akhir dengan beat & karaoke dinamis...")
+    print("[FFmpeg] Merender video akhir Indeks Keringat...")
     subprocess.run(ffmpeg_cmd, check=True)
-    print(f"[FFmpeg] Video selesai dirender: {video_out}")
+    print(f"[FFmpeg] Video berhasil dibuat: {video_out}")
     return video_out
 
 
 # ==============================================================================
-# 8. MODUL DISTRIBUSI OTOMATIS KE BOT TELEGRAM PRIBADI
+# 9. DISTRIBUSI TELEGRAM OTOMATIS
 # ==============================================================================
 def send_outputs_to_telegram(
     video_path: Path,
     carousel_paths: List[Path],
     analysis: Dict[str, Any],
+    metrics: Dict[str, Any],
     news_item: Dict[str, str],
 ) -> None:
     if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
-        print(
-            "[Telegram] TELEGRAM_BOT_TOKEN atau TELEGRAM_CHAT_ID belum diset. "
-            "Melewati pengiriman ke Telegram."
-        )
+        print("[Telegram] TELEGRAM_BOT_TOKEN atau TELEGRAM_CHAT_ID belum diset. Melewati notifikasi Telegram.")
         return
 
     base_url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}"
-    ticker = analysis.get("ticker_symbol", "$TREN")
-    status = analysis.get("market_status", "BULLISH")
-    score = analysis.get("sentiment_score", 75)
-    pct = analysis.get("price_change_pct", "+10%")
-    verdict = analysis.get("verdict_action", "HOLD")
-    model_used = analysis.get("_model_used", "gemini-auto")
-    caption_body = analysis.get("telegram_caption", "")
+    item_name = analysis.get("item_name", "Barang Viral")
+    price_str = metrics["price_str"]
+    ojol_trips = metrics["ojol_trips"]
+    ojol_days = metrics["ojol_days"]
+    umr_months = metrics["umr_months"]
+    umr_days = metrics["umr_days"]
+    karung_beras = metrics["karung_beras"]
+    gram_emas = metrics["gram_emas"]
+    caption = analysis.get("telegram_caption", "")
 
     header_msg = (
-        f"📊 *HYPE & SENTIMENT INDEX HARI INI*\n"
-        f"Emiten Tren: `{ticker}` — *{analysis.get('entity_name', '')}*\n"
-        f"Status Pasar: *{status}* ({pct} | Skor: {score}% | Verdict: *{verdict}*)\n"
-        f"Model AI: `{model_used}`\n"
-        f"Sumber Berita: {news_item.get('title', '')}\n"
-        f"Link: {news_item.get('link', '')}\n\n"
-        f"📝 *Caption Siap Copy-Paste:*\n{caption_body}"
+        f"📊 *INDEKS KERINGAT HARI INI*\n"
+        f"Objek: *{item_name}*\n"
+        f"Harga Resmi: *{price_str}*\n\n"
+        f"🛵 *Beban Driver Ojol:* `{ojol_trips:,}` Trip (~{ojol_days} hari kerja penuh)\n"
+        f"💼 *Beban Pekerja UMR:* `{umr_months}` Bulan Gaji (~{umr_days} hari kerja)\n"
+        f"⚖️ *Setara Kebutuhan Pokok:* {karung_beras} Karung Beras atau {gram_emas}g Emas Murni\n\n"
+        f"📝 *Caption Rekomendasi Media:*\n{caption}"
     )
 
     print("[Telegram] Mengirim video vertikal (.mp4) ke Telegram...")
     with video_path.open("rb") as vf:
-        resp_vid = requests.post(
+        requests.post(
             f"{base_url}/sendVideo",
-            data={
-                "chat_id": TELEGRAM_CHAT_ID,
-                "caption": header_msg[:1024],
-                "parse_mode": "Markdown",
-            },
+            data={"chat_id": TELEGRAM_CHAT_ID, "caption": header_msg[:1024], "parse_mode": "Markdown"},
             files={"video": vf},
             timeout=120,
         )
-        resp_vid.raise_for_status()
 
-    print("[Telegram] Mengirim album Carousel Instagram ke Telegram...")
+    print("[Telegram] Mengirim album Carousel Infografis ke Telegram...")
     media_group = []
     files_payload = {}
     for idx, img_path in enumerate(carousel_paths[:10]):
         attach_key = f"slide_{idx}"
         files_payload[attach_key] = img_path.open("rb")
-        media_item: Dict[str, Any] = {
-            "type": "photo",
-            "media": f"attach://{attach_key}",
-        }
+        item_obj: Dict[str, Any] = {"type": "photo", "media": f"attach://{attach_key}"}
         if idx == 0:
-            media_item["caption"] = (
-                f"🖼 Carousel Instagram (4:5 Editorial Dark Mode) — {ticker} ({len(carousel_paths)} Slide)"
-            )
-        media_group.append(media_item)
+            item_obj["caption"] = f"🖼 Carousel Indeks Keringat: {item_name} ({len(carousel_paths)} Slide)"
+        media_group.append(item_obj)
 
     try:
-        resp_album = requests.post(
+        requests.post(
             f"{base_url}/sendMediaGroup",
-            data={
-                "chat_id": TELEGRAM_CHAT_ID,
-                "media": json.dumps(media_group),
-            },
+            data={"chat_id": TELEGRAM_CHAT_ID, "media": json.dumps(media_group)},
             files=files_payload,
             timeout=120,
         )
-        resp_album.raise_for_status()
     finally:
-        for f_obj in files_payload.values():
-            f_obj.close()
+        for f in files_payload.values():
+            f.close()
 
-    print("[Telegram] Seluruh paket konten harian berhasil dikirim ke Telegram!")
+    print("[Telegram] Paket konten Indeks Keringat berhasil dikirim!")
 
 
 # ==============================================================================
-# 9. ORKESTRATOR UTAMA (MAIN PIPELINE)
+# 10. PIPELINE UTAMA
 # ==============================================================================
 def main() -> None:
     print("=" * 72)
-    print("🚀 MEMULAI PIPELINE HYPE & SENTIMENT INDEX (STUDIO CREATIVE V2)")
+    print("🚀 MEMULAI PIPELINE INDEKS KERINGAT (DATA & PURCHASING POWER MEDIA)")
     print("=" * 72)
 
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     CAROUSEL_DIR.mkdir(parents=True, exist_ok=True)
 
-    primary_news, supporting_headlines = fetch_latest_unposted_news()
-    analysis = analyze_news_with_gemini(primary_news, supporting_headlines)
+    news_item, supporting = fetch_latest_lifestyle_trend()
+    analysis = analyze_purchasing_power_with_gemini(news_item, supporting)
 
-    analysis_json_path = OUTPUT_DIR / "latest_analysis.json"
-    analysis_json_path.write_text(
-        json.dumps(analysis, indent=2, ensure_ascii=False), encoding="utf-8"
-    )
+    metrics = compute_labor_metrics(analysis.get("price_idr", 20_000_000))
+    analysis["metrics"] = metrics
 
-    hero_photo = fetch_real_editorial_photo(
-        primary_news, analysis.get("entity_name", ""), HERO_IMG_PATH
-    )
+    latest_json = OUTPUT_DIR / "latest_analysis.json"
+    latest_json.write_text(json.dumps(analysis, indent=2, ensure_ascii=False), encoding="utf-8")
 
-    voice_script = analysis.get(
-        "voiceover_script",
-        f"Pergerakan indeks sentimen hari ini dibuka oleh {primary_news['title']}.",
-    )
+    hero_photo = fetch_editorial_photo(news_item, analysis.get("item_name", ""), HERO_IMG_PATH)
+
+    voice_script = analysis.get("voiceover_script", f"Berapa lama driver ojol harus narik untuk beli {analysis.get('item_name', '')}?")
     word_timings = generate_voiceover(voice_script, AUDIO_PATH, SUBTITLE_PATH)
 
-    carousel_files = render_carousel_slides(analysis, hero_photo, CAROUSEL_DIR)
+    carousel_files = render_carousel_slides(analysis, metrics, hero_photo, CAROUSEL_DIR)
 
-    video_file = render_vertical_video(
-        analysis, hero_photo, word_timings, AUDIO_PATH, FINAL_VIDEO_PATH
-    )
+    video_file = render_vertical_video(analysis, metrics, hero_photo, word_timings, AUDIO_PATH, FINAL_VIDEO_PATH)
 
-    send_outputs_to_telegram(video_file, carousel_files, analysis, primary_news)
+    send_outputs_to_telegram(video_file, carousel_files, analysis, metrics, news_item)
 
-    save_posted_link(primary_news["link"])
-    print(f"[Cache] Link berita disimpan ke {CACHE_FILE} untuk mencegah duplikasi.")
-    print("✅ PIPELINE SELESAI DENGAN SUKSES!")
+    save_posted_link(news_item["link"])
+    print(f"[Cache] Link disimpan ke {CACHE_FILE}.")
+    print("✅ PIPELINE INDEKS KERINGAT BERHASIL SELESAI!")
 
 
 if __name__ == "__main__":
     try:
         main()
     except Exception as err:
-        print(f"❌ [ERROR] Pipeline berhenti karena kendala: {err}", file=sys.stderr)
+        print(f"❌ [ERROR] Pipeline berhenti: {err}", file=sys.stderr)
         sys.exit(1)
