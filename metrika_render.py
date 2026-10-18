@@ -1,13 +1,12 @@
 """
 metrika_render.py  --  Modul render grafis METRIKA Kelas Agensi (Jurnalisme Data & Riset Finansial).
 
-STANDAR DESAIN EDITORIAL KELAS TINGGI:
-- FORMAT LENGKAP 5 SLIDE NARRATIVE CAROUSEL (1080x1350 px).
+STANDAR VISUAL KELAS AGENSI DESAIN:
+- 5 Slide Narrative Carousel Penuh (1080x1350 px).
 - PALET COKLAT MEWAH (Luxury Espresso #1E140E, Warm Cognac Leather #8C5835, Warm Ivory Linen #FBF8F4, Toasted Kraft #E7DBCF).
-- SETIAP SLIDE (1 SAMPAI 5) WAJIB MEMILIKI GAMBAR NYATA & RELEVAN.
-- SETIAP SLIDE MEMILIKI HOOK PENAHAN SCROLL (STOP-SCROLLING HOOK) DI ATAS.
-- KANVAS PADAT & PENUH: Tidak ada ruang kosong hampa di bagian bawah slide.
-- Rendered via Playwright (Headless Chromium) 1080x1350 px.
+- ZERO EMPTY SPACE (PADAT & BERISI): Seluruh 1350px kanvas terisi proporsional dari atas ke bawah.
+- HOOK PENAHAN SCROLL (STOP-SCROLLING HOOK) DI SETIAP SLIDE.
+- FOTO NYATA BERKUALITAS TINGGI DI SETIAP SLIDE (1 sampai 5).
 """
 from __future__ import annotations
 
@@ -63,11 +62,7 @@ PROGRAMS_THEME = {
 
 
 def format_hook_html(hook_text: str) -> str:
-    """
-    Format hook editorial:
-    Teks espresso tebal dengan kata kunci penting diberi warna MERAH CRIMSON (#B91C1C).
-    Mendukung tag <red>...</red>, **...**, atau auto-highlight cerdas.
-    """
+    """Format hook editorial: teks hitam espresso tebal dengan kata kunci MERAH CRIMSON."""
     clean_text = html.escape(hook_text.strip())
     clean_text = clean_text.replace("&lt;red&gt;", "<red>").replace("&lt;/red&gt;", "</red>")
     clean_text = clean_text.replace("&lt;highlight&gt;", "<red>").replace("&lt;/highlight&gt;", "</red>")
@@ -136,7 +131,7 @@ def get_image_data_uri(img_path: Optional[str | Path]) -> Optional[str]:
 
 
 # ==============================================================================
-# CSS UTAMA: LUXURY BROWN EDITORIAL (ANTI-OVERFLOW & ZERO BLANK VOID)
+# CSS UTAMA: EDITORIAL PADAT, ZERO BLANK VOID (TINGGI TEPAT 1350px)
 # ==============================================================================
 def get_base_css() -> str:
     return f"""
@@ -173,7 +168,6 @@ body {{
   position: relative;
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
 }}
 
 .text-red {{
@@ -181,14 +175,16 @@ body {{
   font-weight: 900 !important;
 }}
 
-/* Top Brand Bar */
+/* Top Brand Bar (Tinggi ~80px) */
 .brand-header {{
+  height: 80px;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 34px 52px 14px 52px;
+  padding: 0 52px;
   background-color: var(--bg);
   z-index: 10;
+  flex-shrink: 0;
 }}
 .brand-left {{
   display: flex;
@@ -246,18 +242,28 @@ body {{
   box-shadow: 0 2px 6px rgba(43, 26, 18, 0.04);
 }}
 
-/* SLIDE CONTAINER GLOBAL: Mengisi Penuh 1350px Tanpa Ruang Kosong */
+/* KONTENER UTAMA: MEMBENTANG PENUH DARI HEADER HINGGA FOOTER (Tinggi 1270px) */
 .slide-content-wrapper {{
-  flex: 1;
+  height: 1270px;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
   padding: 6px 52px 28px 52px;
+  box-sizing: border-box;
 }}
 
-/* HEADER BOX DENGAN STOP-SCROLLING HOOK */
-.slide-header-box {{
+.slide-main-body {{
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
   margin-bottom: 16px;
+}}
+
+/* HEADER HOOK PENAHAN SCROLL */
+.slide-header-box {{
+  flex-shrink: 0;
+  margin-bottom: 14px;
 }}
 .slide-eyebrow-pill {{
   display: inline-flex;
@@ -268,7 +274,7 @@ body {{
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--brown-accent);
-  margin-bottom: 8px;
+  margin-bottom: 6px;
 }}
 .slide-hook-headline {{
   font-family: 'Plus Jakarta Sans', sans-serif;
@@ -281,9 +287,10 @@ body {{
 
 /* COVER SLIDE 1 */
 .cover-top-box {{
-  padding: 6px 52px 22px 52px;
+  padding: 6px 52px 20px 52px;
   background-color: var(--bg);
   z-index: 10;
+  flex-shrink: 0;
 }}
 .cover-headline {{
   font-family: 'Plus Jakarta Sans', sans-serif;
@@ -321,7 +328,6 @@ body {{
   font-weight: 700;
   color: var(--text-main);
 }}
-
 .cover-photo-wrapper {{
   flex: 1;
   width: 100%;
@@ -342,7 +348,7 @@ body {{
   bottom: 0;
   left: 0;
   right: 0;
-  height: 200px;
+  height: 220px;
   background: linear-gradient(to top, rgba(27, 17, 12, 0.94) 0%, rgba(35, 22, 15, 0.50) 60%, transparent 100%);
   display: flex;
   align-items: flex-end;
@@ -370,7 +376,7 @@ body {{
   font-weight: 900;
 }}
 
-/* SLIDE 2: KONTEKS FAKTA (Large Photo 380px + 3 Dense Argument Cards) */
+/* SLIDE 2: KONTEKS FAKTA (MENGISI PENUH KANVAS) */
 .slide2-media-card {{
   width: 100%;
   height: 380px;
@@ -379,8 +385,9 @@ body {{
   position: relative;
   background-color: var(--brown-dark);
   border: 1.5px solid var(--border);
-  margin-bottom: 18px;
   box-shadow: 0 8px 24px rgba(43, 26, 18, 0.08);
+  flex-shrink: 0;
+  margin-bottom: 16px;
 }}
 .slide2-media-img {{
   width: 100%;
@@ -392,13 +399,13 @@ body {{
   position: absolute;
   top: 18px;
   left: 20px;
-  background: rgba(27, 17, 12, 0.85);
+  background: rgba(27, 17, 12, 0.88);
   backdrop-filter: blur(8px);
-  border: 1px solid rgba(231, 219, 207, 0.3);
+  border: 1px solid rgba(231, 219, 207, 0.4);
   padding: 6px 14px;
   border-radius: 6px;
   font-size: 12px;
-  font-weight: 800;
+  font-weight: 900;
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: #FAF6F0;
@@ -407,22 +414,24 @@ body {{
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 14px;
-  margin-bottom: 16px;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
 }}
 .slide2-point-card {{
   background: #FFFFFF;
   border: 1.5px solid var(--border);
+  border-left: 5px solid var(--brown-accent);
   border-radius: 16px;
   padding: 18px 22px;
   display: flex;
   align-items: flex-start;
-  gap: 14px;
+  gap: 16px;
   box-shadow: 0 4px 12px rgba(43, 26, 18, 0.03);
 }}
 .slide2-point-num {{
-  width: 32px;
-  height: 32px;
+  width: 34px;
+  height: 34px;
   border-radius: 50%;
   background: var(--brown-light);
   border: 1.5px solid var(--brown-accent);
@@ -445,20 +454,34 @@ body {{
   font-weight: 800;
   color: var(--brown-dark);
 }}
+.slide2-takeaway-pill {{
+  background: var(--brown-light);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px 18px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--brown-dark);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}}
 
-/* SLIDE 3: BEDAH DATA (Split Visual Metric + Dual Column Cards) */
+/* SLIDE 3: BEDAH DATA (MENGISI PENUH KANVAS) */
 .slide3-split-metric-card {{
   background: #FFFFFF;
   border: 1.5px solid var(--border);
   border-radius: 20px;
   overflow: hidden;
   display: flex;
-  height: 230px;
-  margin-bottom: 18px;
+  height: 250px;
   box-shadow: 0 6px 20px rgba(43, 26, 18, 0.05);
+  flex-shrink: 0;
+  margin-bottom: 16px;
 }}
 .slide3-img-pane {{
-  width: 380px;
+  width: 400px;
   height: 100%;
   position: relative;
   background-color: var(--brown-dark);
@@ -482,14 +505,14 @@ body {{
 }}
 .slide3-metric-val {{
   font-family: 'Outfit', sans-serif;
-  font-size: 48px;
+  font-size: 52px;
   font-weight: 900;
   color: var(--brown-accent);
   line-height: 1.1;
-  margin-bottom: 6px;
+  margin-bottom: 8px;
 }}
 .slide3-metric-lbl {{
-  font-size: 16px;
+  font-size: 17px;
   font-weight: 700;
   line-height: 1.35;
   color: var(--text-main);
@@ -499,61 +522,87 @@ body {{
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: 18px;
-  margin-bottom: 16px;
+  margin-bottom: 14px;
 }}
 .slide3-column-card {{
   background: #FFFFFF;
   border: 1.5px solid var(--border);
   border-radius: 18px;
-  padding: 22px 20px;
+  padding: 22px 22px;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
   box-shadow: 0 4px 16px rgba(43, 26, 18, 0.04);
 }}
 .slide3-column-header {{
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 900;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--brown-accent);
   padding-bottom: 10px;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1.5px solid var(--line);
   margin-bottom: 14px;
 }}
 .slide3-points-list {{
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 14px;
 }}
 .slide3-point-item {{
   display: flex;
   align-items: flex-start;
   gap: 10px;
   font-size: 15px;
-  line-height: 1.45;
+  line-height: 1.48;
   color: var(--text-main);
 }}
 .slide3-bullet {{
-  width: 7px;
-  height: 7px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
   background: var(--brown-accent);
   margin-top: 7px;
   flex-shrink: 0;
 }}
+.slide3-column-footer {{
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  display: flex;
+  justify-content: space-between;
+}}
+.slide3-alert-banner {{
+  background: #FEF2F2;
+  border: 1.5px solid rgba(185, 28, 28, 0.3);
+  border-radius: 12px;
+  padding: 12px 18px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--red);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}}
 
-/* SLIDE 4: SKENARIO STRATEGIS (Photo Banner 260px + 3 Skenario Cards) */
+/* SLIDE 4: SKENARIO STRATEGIS (MENGISI PENUH KANVAS) */
 .slide4-media-card {{
   width: 100%;
-  height: 260px;
+  height: 320px;
   border-radius: 20px;
   overflow: hidden;
   position: relative;
   background-color: var(--brown-dark);
   border: 1.5px solid var(--border);
-  margin-bottom: 16px;
   box-shadow: 0 6px 18px rgba(43, 26, 18, 0.06);
+  flex-shrink: 0;
+  margin-bottom: 16px;
 }}
 .slide4-media-img {{
   width: 100%;
@@ -561,10 +610,26 @@ body {{
   object-fit: cover;
   display: block;
 }}
+.slide4-media-badge {{
+  position: absolute;
+  top: 18px;
+  left: 20px;
+  background: rgba(27, 17, 12, 0.88);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(231, 219, 207, 0.4);
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #FAF6F0;
+}}
 .slide4-scenarios-container {{
   flex: 1;
   display: flex;
   flex-direction: column;
+  justify-content: space-between;
   gap: 12px;
   margin-bottom: 14px;
 }}
@@ -588,34 +653,35 @@ body {{
 }}
 .slide4-scenario-body {{
   font-size: 15px;
-  line-height: 1.45;
+  line-height: 1.48;
   color: var(--text-main);
 }}
 .slide4-takeaway-bar {{
   background: var(--brown-light);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 12px 18px;
-  font-size: 13px;
+  border: 1.5px solid var(--border);
+  border-radius: 14px;
+  padding: 14px 20px;
+  font-size: 14px;
   font-weight: 700;
   color: var(--brown-dark);
   display: flex;
   align-items: center;
-  gap: 10px;
-  margin-bottom: 14px;
+  gap: 12px;
+  flex-shrink: 0;
 }}
 
-/* SLIDE 5: VERDICT REDAKSI & DISKUSI (Photo Banner 350px + Quote + CTA + Sources) */
+/* SLIDE 5: VERDICT REDAKSI & DISKUSI (MENGISI PENUH KANVAS) */
 .slide5-verdict-banner {{
   width: 100%;
-  height: 350px;
+  height: 420px;
   border-radius: 20px;
   overflow: hidden;
   position: relative;
   background-color: var(--brown-dark);
   border: 1.5px solid var(--border);
-  margin-bottom: 16px;
   box-shadow: 0 8px 24px rgba(43, 26, 18, 0.08);
+  flex-shrink: 0;
+  margin-bottom: 16px;
 }}
 .slide5-verdict-img {{
   width: 100%;
@@ -626,8 +692,8 @@ body {{
 .slide5-verdict-overlay {{
   position: absolute;
   inset: 0;
-  background: linear-gradient(to top, rgba(32, 20, 14, 0.95) 0%, rgba(43, 26, 18, 0.72) 55%, rgba(43, 26, 18, 0.40) 100%);
-  padding: 32px 36px;
+  background: linear-gradient(to top, rgba(32, 20, 14, 0.96) 0%, rgba(43, 26, 18, 0.75) 55%, rgba(43, 26, 18, 0.40) 100%);
+  padding: 36px 40px;
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
@@ -635,18 +701,18 @@ body {{
 .slide5-verdict-tag {{
   font-size: 13px;
   font-weight: 900;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
   color: #E2B792;
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 10px;
+  margin-bottom: 12px;
 }}
 .slide5-verdict-quote {{
-  font-size: 23px;
-  font-weight: 700;
-  line-height: 1.45;
+  font-size: 26px;
+  font-weight: 800;
+  line-height: 1.42;
   color: #FAF6F0;
 }}
 
@@ -654,21 +720,22 @@ body {{
   background: #FFFFFF;
   border: 1.5px solid var(--border);
   border-radius: 18px;
-  padding: 20px 24px;
+  padding: 22px 26px;
   display: flex;
   align-items: center;
-  gap: 18px;
-  margin-bottom: 16px;
+  gap: 20px;
   box-shadow: 0 4px 16px rgba(43, 26, 18, 0.04);
+  flex-shrink: 0;
+  margin-bottom: 16px;
 }}
 .cta-badge-icon {{
-  width: 48px;
-  height: 48px;
+  width: 52px;
+  height: 52px;
   border-radius: 50%;
   background: var(--brown-accent);
   color: #FFFFFF;
   font-family: 'Outfit', sans-serif;
-  font-size: 26px;
+  font-size: 28px;
   font-weight: 900;
   display: flex;
   align-items: center;
@@ -676,9 +743,9 @@ body {{
   flex-shrink: 0;
 }}
 .cta-query-text {{
-  font-size: 17px;
+  font-size: 18px;
   font-weight: 700;
-  line-height: 1.35;
+  line-height: 1.38;
   color: var(--brown-dark);
 }}
 
@@ -686,7 +753,8 @@ body {{
   background: var(--brown-light);
   border: 1px solid var(--border);
   border-radius: 14px;
-  padding: 12px 18px;
+  padding: 14px 20px;
+  flex-shrink: 0;
   margin-bottom: 16px;
 }}
 .sources-title-row {{
@@ -706,17 +774,19 @@ body {{
   background: #FFFFFF;
   border: 1px solid var(--border);
   border-radius: 6px;
-  padding: 4px 12px;
+  padding: 5px 14px;
   font-size: 12px;
   font-weight: 700;
   color: var(--brown-dark);
 }}
 
-/* Global Footer & Progress Bar */
+/* Global Footer & Progress Bar (Tinggi ~60px) */
+.slide-bottom-bar {{
+  flex-shrink: 0;
+}}
 .carousel-progress-bar {{
   display: flex;
   gap: 8px;
-  margin-top: auto;
   margin-bottom: 12px;
 }}
 .progress-segment-item {{
@@ -816,13 +886,14 @@ def render_html_cover(content: Dict[str, Any], theme: Dict[str, Any], total_slid
 
 
 # ==============================================================================
-# RENDERER SLIDE 2: KONTEKS & AKAR MASALAH (THE CATALYST)
+# RENDERER SLIDE 2: KONTEKS FAKTA LAPANGAN
 # ==============================================================================
 def render_html_context(content: Dict[str, Any], theme: Dict[str, Any], total_slides: int) -> str:
     s2 = content.get("slide_context", {})
     eyebrow = html.escape(s2.get("eyebrow", "01 / DOKUMENTASI FAKTA"))
-    hook = html.escape(s2.get("hook", "Mengapa Isu Ini Mendadak Mencuat Sekarang?"))
+    hook = html.escape(s2.get("hook", "Mengapa Dolar Tiba-tiba Menggila dan Bikin Rupiah Tertekan?"))
     points = s2.get("points", [])
+    takeaway = html.escape(s2.get("takeaway", "Tekanan kurs bukan hanya angka di berita, tapi potensi kenaikan harga bahan pokok sehari-hari."))
 
     img_uri = get_image_data_uri(content.get("slide2_image") or content.get("hero_image"))
 
@@ -862,7 +933,7 @@ def render_html_context(content: Dict[str, Any], theme: Dict[str, Any], total_sl
   </div>
 
   <div class="slide-content-wrapper">
-    <div>
+    <div class="slide-main-body">
       <div class="slide-header-box">
         <div class="slide-eyebrow-pill">{eyebrow}</div>
         <h2 class="slide-hook-headline">{hook}</h2>
@@ -876,9 +947,14 @@ def render_html_context(content: Dict[str, Any], theme: Dict[str, Any], total_sl
       <div class="slide2-context-points">
         {"".join(points_html)}
       </div>
+
+      <div class="slide2-takeaway-pill">
+        <span>⚡</span>
+        <span><b>FAKTA KUNCI:</b> {takeaway}</span>
+      </div>
     </div>
 
-    <div>
+    <div class="slide-bottom-bar">
       <div class="carousel-progress-bar">
         {prog_bars}
       </div>
@@ -894,24 +970,26 @@ def render_html_context(content: Dict[str, Any], theme: Dict[str, Any], total_sl
 
 
 # ==============================================================================
-# RENDERER SLIDE 3: BEDAH DATA & METRIK SPOTLIGHT
+# RENDERER SLIDE 3: BEDAH DATA & IMPLIKASI
 # ==============================================================================
 def render_html_metric(content: Dict[str, Any], theme: Dict[str, Any], total_slides: int) -> str:
     s3 = content.get("slide_metric", {})
     eyebrow = html.escape(s3.get("eyebrow", "02 / BEDAH DATA RISET"))
-    hook = html.escape(s3.get("hook", "Angka di Balik Realita: Siapa Untung, Siapa Buntung?"))
-    m_val = html.escape(str(s3.get("metric_value", "+24,5%")))
-    m_lbl = html.escape(str(s3.get("metric_label", "perubahan rata-rata acuan pasar terverifikasi")))
+    hook = html.escape(s3.get("hook", "Berapa Beban yang Diam-diam Harus Ditanggung Dompet Kita?"))
+    m_val = html.escape(str(s3.get("metric_value", "-6,5%")))
+    m_lbl = html.escape(str(s3.get("metric_label", "depresiasi rupiah year-to-date terhadap dolar AS")))
 
     img_uri = get_image_data_uri(content.get("slide3_image") or content.get("hero_image"))
 
-    col1_title = html.escape(s3.get("col1_title", "Faktor Penguat"))
+    col1_title = html.escape(s3.get("col1_title", "Dampak Langsung ke Konsumen"))
     col1_points = s3.get("col1_points", [])
     col1_html = "".join(f'<div class="slide3-point-item"><div class="slide3-bullet"></div><div>{format_point_body_html(p)}</div></div>' for p in col1_points[:3])
 
-    col2_title = html.escape(s3.get("col2_title", "Faktor Risiko"))
+    col2_title = html.escape(s3.get("col2_title", "Dampak ke Sektor Usaha"))
     col2_points = s3.get("col2_points", [])
     col2_html = "".join(f'<div class="slide3-point-item"><div class="slide3-bullet"></div><div>{format_point_body_html(p)}</div></div>' for p in col2_points[:3])
+
+    alert_text = html.escape(s3.get("alert_text", "Setiap pelemahan Rp 500 per dolar menambah beban impor bahan baku sebesar triliunan rupiah."))
 
     prog_bars = "".join(
         f'<div class="progress-segment-item {"active" if idx < 3 else ""}"></div>'
@@ -939,7 +1017,7 @@ def render_html_metric(content: Dict[str, Any], theme: Dict[str, Any], total_sli
   </div>
 
   <div class="slide-content-wrapper">
-    <div>
+    <div class="slide-main-body">
       <div class="slide-header-box">
         <div class="slide-eyebrow-pill">{eyebrow}</div>
         <h2 class="slide-hook-headline">{hook}</h2>
@@ -957,21 +1035,38 @@ def render_html_metric(content: Dict[str, Any], theme: Dict[str, Any], total_sli
 
       <div class="slide3-dual-columns">
         <div class="slide3-column-card">
-          <div class="slide3-column-header">{col1_title}</div>
-          <div class="slide3-points-list">
-            {col1_html}
+          <div>
+            <div class="slide3-column-header">{col1_title}</div>
+            <div class="slide3-points-list">
+              {col1_html}
+            </div>
+          </div>
+          <div class="slide3-column-footer">
+            <span>METRIKA DATA AUDIT</span>
+            <span>BEBAN RITEL</span>
           </div>
         </div>
         <div class="slide3-column-card">
-          <div class="slide3-column-header">{col2_title}</div>
-          <div class="slide3-points-list">
-            {col2_html}
+          <div>
+            <div class="slide3-column-header">{col2_title}</div>
+            <div class="slide3-points-list">
+              {col2_html}
+            </div>
+          </div>
+          <div class="slide3-column-footer">
+            <span>METRIKA DATA AUDIT</span>
+            <span>BEBAN INDUSTRI</span>
           </div>
         </div>
       </div>
+
+      <div class="slide3-alert-banner">
+        <span>⚠️</span>
+        <span><b>CATATAN AUDIT:</b> {alert_text}</span>
+      </div>
     </div>
 
-    <div>
+    <div class="slide-bottom-bar">
       <div class="carousel-progress-bar">
         {prog_bars}
       </div>
@@ -992,9 +1087,9 @@ def render_html_metric(content: Dict[str, Any], theme: Dict[str, Any], total_sli
 def render_html_strategy(content: Dict[str, Any], theme: Dict[str, Any], total_slides: int) -> str:
     s4 = content.get("slide_strategy", {})
     eyebrow = html.escape(s4.get("eyebrow", "03 / SKENARIO STRATEGIS"))
-    hook = html.escape(s4.get("hook", "Tiga Skenario Menghadapi Fluktuasi Pasar"))
+    hook = html.escape(s4.get("hook", "Tiga Benteng Finansial Sebelum Badai Inflasi Mengganas"))
     scenarios = s4.get("scenarios", [])
-    takeaway = html.escape(s4.get("takeaway", "Emas adalah pelindung nilai daya beli, bukan jalan pintas cepat kaya."))
+    takeaway = html.escape(s4.get("takeaway", "Rupiah boleh melemah, tapi strategi finansialmu tidak boleh ikut lumpuh."))
 
     img_uri = get_image_data_uri(content.get("slide4_image") or content.get("hero_image"))
 
@@ -1035,7 +1130,7 @@ def render_html_strategy(content: Dict[str, Any], theme: Dict[str, Any], total_s
   </div>
 
   <div class="slide-content-wrapper">
-    <div>
+    <div class="slide-main-body">
       <div class="slide-header-box">
         <div class="slide-eyebrow-pill">{eyebrow}</div>
         <h2 class="slide-hook-headline">{hook}</h2>
@@ -1043,6 +1138,7 @@ def render_html_strategy(content: Dict[str, Any], theme: Dict[str, Any], total_s
 
       <div class="slide4-media-card">
         <img src="{img_uri}" class="slide4-media-img" alt="Visual Strategi" />
+        <div class="slide4-media-badge">PANDUAN MITIGASI RISIKO</div>
       </div>
 
       <div class="slide4-scenarios-container">
@@ -1051,11 +1147,11 @@ def render_html_strategy(content: Dict[str, Any], theme: Dict[str, Any], total_s
 
       <div class="slide4-takeaway-bar">
         <span>💡</span>
-        <span><b>CATATAN KUNCI:</b> {takeaway}</span>
+        <span><b>PRINSIP UTAMA:</b> {takeaway}</span>
       </div>
     </div>
 
-    <div>
+    <div class="slide-bottom-bar">
       <div class="carousel-progress-bar">
         {prog_bars}
       </div>
@@ -1111,7 +1207,7 @@ def render_html_verdict(content: Dict[str, Any], theme: Dict[str, Any], total_sl
   </div>
 
   <div class="slide-content-wrapper">
-    <div>
+    <div class="slide-main-body">
       <div class="slide-header-box">
         <div class="slide-eyebrow-pill">04 / KESIMPULAN RISET</div>
         <h2 class="slide-hook-headline">Verdict Riset & Ruang Diskusi Terbuka</h2>
@@ -1122,7 +1218,7 @@ def render_html_verdict(content: Dict[str, Any], theme: Dict[str, Any], total_sl
         <div class="slide5-verdict-overlay">
           <div class="slide5-verdict-tag">
             <span>⚖️</span>
-            <span>VERDICT OBJEKTIF REDAKSI</span>
+            <span>VERDICT OBJEKTIF REDAKSI METRIKA</span>
           </div>
           <div class="slide5-verdict-quote">{verdict_text}</div>
         </div>
@@ -1141,7 +1237,7 @@ def render_html_verdict(content: Dict[str, Any], theme: Dict[str, Any], total_sl
       </div>
     </div>
 
-    <div>
+    <div class="slide-bottom-bar">
       <div class="carousel-progress-bar">
         {prog_bars}
       </div>
@@ -1186,7 +1282,7 @@ def render_carousel_slides(
     try:
         from playwright.sync_api import sync_playwright
 
-        print("[Playwright] Memulai Chromium headless untuk render 5 Slide Carousel (Luxury Brown)...")
+        print("[Playwright] Memulai Chromium headless untuk render 5 Slide Carousel (Agency Grade Padat)...")
         with sync_playwright() as p:
             browser = p.chromium.launch(
                 args=[
@@ -1228,7 +1324,6 @@ def render_carousel_slides(
     return out_paths
 
 
-# Fallback generator jika video diminta di masa depan
 def render_vertical_video(*args, **kwargs) -> Path:
     return Path("disabled_video.mp4")
 
