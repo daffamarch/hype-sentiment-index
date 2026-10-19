@@ -1,10 +1,12 @@
 name: METRIKA Media Multi-Program Automation
 
 on:
-  # Jadwal otomatis setiap hari:
-  # Pukul 22:00 UTC = Pukul 05:00 WIB (Subuh)
+  # Jadwal otomatis 3 kali sehari (WIB = UTC+7):
+  # - 00:15 UTC = 07:15 WIB (Pagi)
+  # - 05:15 UTC = 12:15 WIB (Siang)
+  # - 12:15 UTC = 19:15 WIB (Malam)
   schedule:
-    - cron: '0 22 * * *'
+    - cron: '15 0,5,12 * * *'
 
   # Eksekusi manual via tab "Actions" -> "Run workflow" (Bisa pilih rubrik manual untuk tes)
   workflow_dispatch:
