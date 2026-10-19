@@ -84,6 +84,7 @@ SLIDE_IMG_PATHS: Dict[str, Path] = {
 
 PEXELS_API_KEY = os.environ.get("PEXELS_API_KEY", "").strip()
 UNSPLASH_ACCESS_KEY = os.environ.get("UNSPLASH_ACCESS_KEY", "").strip()
+# Registry statis TIDAK dipakai kecuali diaktifkan eksplisit (USE_REGISTRY_FALLBACK=1)
 SMART_PHOTO = os.environ.get("SMART_PHOTO", "1").strip() != "0"
 CAND_DIR = Path("output_media") / "_cand"
 USE_REGISTRY_FALLBACK = os.environ.get("USE_REGISTRY_FALLBACK", "").strip() == "1"
@@ -96,7 +97,7 @@ HTTP_HEADERS = {
     "Accept-Language": "id-ID,id;q=0.9,en;q=0.7",
 }
 
-MIN_COVER_WIDTH = 600
+MIN_COVER_WIDTH = 600      # og:image lebih kecil dari ini dianggap buram / logo
 MIN_REGISTRY_WIDTH = 800
 
 
@@ -109,65 +110,65 @@ def _u(photo_id: str) -> str:
 
 TOPIC_IMAGE_REGISTRY: Dict[str, List[str]] = {
     "retail": [
-        _u("photo-1542838132-92c53300491e"),
-        _u("photo-1578916171728-46686eac8d58"),
-        _u("photo-1604719312566-8912e9227c6a"),
-        _u("photo-1534723452862-4c874018d66d"),
-        _u("photo-1556742049-0cfed4f6a45d"),
-        _u("photo-1556740738-b6a63e27c4df"),
-        _u("photo-1583258292688-d0213dc5a3a8"),
-        _u("photo-1607082348824-0a96f2a4b9da"),
+        _u("photo-1542838132-92c53300491e"),  # lorong supermarket
+        _u("photo-1578916171728-46686eac8d58"),  # rak supermarket
+        _u("photo-1604719312566-8912e9227c6a"),  # belanja kebutuhan
+        _u("photo-1534723452862-4c874018d66d"),  # rak barang
+        _u("photo-1556742049-0cfed4f6a45d"),  # pembayaran di kasir
+        _u("photo-1556740738-b6a63e27c4df"),  # transaksi kasir toko
+        _u("photo-1583258292688-d0213dc5a3a8"),  # keranjang belanja
+        _u("photo-1607082348824-0a96f2a4b9da"),  # promo / diskon
     ],
     "staples": [
-        _u("photo-1586201375761-83865001e31c"),
-        _u("photo-1536304993881-ff6e9eefa2a6"),
-        _u("photo-1474979266404-7eaacbcd87c5"),
-        _u("photo-1488459716781-31db52582fe9"),
-        _u("photo-1610348725531-843dff563e2c"),
-        _u("photo-1542838132-92c53300491e"),
+        _u("photo-1586201375761-83865001e31c"),  # beras
+        _u("photo-1536304993881-ff6e9eefa2a6"),  # padi / beras
+        _u("photo-1474979266404-7eaacbcd87c5"),  # minyak goreng
+        _u("photo-1488459716781-31db52582fe9"),  # pasar tradisional
+        _u("photo-1610348725531-843dff563e2c"),  # pasar sayur
+        _u("photo-1542838132-92c53300491e"),  # bahan pangan di toko
     ],
     "fuel": [
-        _u("photo-1545454675-3531b543be5d"),
-        _u("photo-1506521781263-d8422e82f27a"),
-        _u("photo-1518709268805-4e9042af9f23"),
-        _u("photo-1584345604476-8ec5e12e42dd"),
-        _u("photo-1558981403-c5f9899a28bc"),
+        _u("photo-1545454675-3531b543be5d"),  # SPBU & nozzle
+        _u("photo-1506521781263-d8422e82f27a"),  # antrean mobil
+        _u("photo-1518709268805-4e9042af9f23"),  # kilang minyak
+        _u("photo-1584345604476-8ec5e12e42dd"),  # indikator bensin
+        _u("photo-1558981403-c5f9899a28bc"),  # lalu lintas motor
     ],
     "macro": [
-        _u("photo-1580519542036-c47de6196ba5"),
-        _u("photo-1526304640581-d334cdbbf45e"),
-        _u("photo-1563013544-824ae1b704d3"),
-        _u("photo-1554224155-6726b3ff858f"),
-        _u("photo-1578632767115-351597cf2477"),
-        _u("photo-1611974789855-9c2a0a7236a3"),
+        _u("photo-1580519542036-c47de6196ba5"),  # uang kertas
+        _u("photo-1526304640581-d334cdbbf45e"),  # valuta asing
+        _u("photo-1563013544-824ae1b704d3"),  # transaksi kartu / bank
+        _u("photo-1554224155-6726b3ff858f"),  # kalkulator & keuangan
+        _u("photo-1578632767115-351597cf2477"),  # pusat bisnis
+        _u("photo-1611974789855-9c2a0a7236a3"),  # grafik ekonomi
     ],
     "gold": [
-        _u("photo-1610375461246-83df859d849d"),
-        _u("photo-1509718443690-d8e2fb3474b7"),
-        _u("photo-1642543492481-44e81e3914a7"),
-        _u("photo-1565372195458-9de0b320ef04"),
-        _u("photo-1454165804606-c3d57bc86b40"),
+        _u("photo-1610375461246-83df859d849d"),  # emas batangan
+        _u("photo-1509718443690-d8e2fb3474b7"),  # koin emas
+        _u("photo-1642543492481-44e81e3914a7"),  # grafik komoditas
+        _u("photo-1565372195458-9de0b320ef04"),  # brankas
+        _u("photo-1454165804606-c3d57bc86b40"),  # keputusan investor
     ],
     "stocks": [
-        _u("photo-1590283603385-17ffb3a7f29f"),
-        _u("photo-1611974789855-9c2a0a7236a3"),
-        _u("photo-1486406146926-c627a92ad1ab"),
-        _u("photo-1551288049-bebda4e38f71"),
-        _u("photo-1517048676732-d65bc937f952"),
+        _u("photo-1590283603385-17ffb3a7f29f"),  # layar bursa
+        _u("photo-1611974789855-9c2a0a7236a3"),  # candlestick
+        _u("photo-1486406146926-c627a92ad1ab"),  # gedung bursa
+        _u("photo-1551288049-bebda4e38f71"),  # dashboard analitik
+        _u("photo-1517048676732-d65bc937f952"),  # diskusi investor
     ],
     "automotive": [
-        _u("photo-1533473359331-0135ef1b58bf"),
-        _u("photo-1545454675-3531b543be5d"),
-        _u("photo-1506521781263-d8422e82f27a"),
-        _u("photo-1584345604476-8ec5e12e42dd"),
-        _u("photo-1492144534655-ae79c964c9d7"),
+        _u("photo-1533473359331-0135ef1b58bf"),  # SUV di jalan
+        _u("photo-1545454675-3531b543be5d"),  # isi bahan bakar
+        _u("photo-1506521781263-d8422e82f27a"),  # antrean kendaraan
+        _u("photo-1584345604476-8ec5e12e42dd"),  # dashboard mobil
+        _u("photo-1492144534655-ae79c964c9d7"),  # lalu lintas kota
     ],
     "general": [
-        _u("photo-1486406146926-c627a92ad1ab"),
-        _u("photo-1611974789855-9c2a0a7236a3"),
-        _u("photo-1580519542036-c47de6196ba5"),
-        _u("photo-1578632767115-351597cf2477"),
-        _u("photo-1590283603385-17ffb3a7f29f"),
+        _u("photo-1486406146926-c627a92ad1ab"),  # gedung bisnis
+        _u("photo-1611974789855-9c2a0a7236a3"),  # grafik data
+        _u("photo-1580519542036-c47de6196ba5"),  # uang & perbankan
+        _u("photo-1578632767115-351597cf2477"),  # pusat bisnis metropolitan
+        _u("photo-1590283603385-17ffb3a7f29f"),  # analisis & keputusan
     ],
 }
 CATEGORY_ALIASES = {"currency": "macro", "rupiah": "macro", "retail_consumer": "retail", "food": "staples"}
@@ -242,6 +243,7 @@ def get_daily_program_config() -> Dict[str, Any]:
     if PROGRAM_OVERRIDE in ("INDEKS_KERINGAT", "RADAR_SENTIMEN", "ANGKA_BICARA"):
         p_id = PROGRAM_OVERRIDE
     else:
+        # Evaluasi hari kalender Indonesia (WIB = UTC+7)
         weekday = get_now_wib().weekday()
         p_id = "INDEKS_KERINGAT" if weekday in (0, 3) else "RADAR_SENTIMEN" if weekday in (1, 4) else "ANGKA_BICARA"
 
@@ -1064,19 +1066,19 @@ Format output: JSON murni tanpa markdown, tepat dengan kunci berikut:
     "**Pengawasan Selalu Reaktif:** Otoritas pengawas selalu baru bersuara keras setelah publik dan media ramai membongkar kejanggalan transaksi, bukan lewat deteksi algoritma pencegahan dini."
   ],
   "slide3_alert_text": "Ketika pengawasan pasar modal berjalan lambat, biaya kelalaian regulasi selalu ditagihkan ke kantong investor ritel.",
-  "chart_data": {
+  "chart_data": {{
     "title": "Denda vs Komitmen Beli Balik vs Valuasi Tergerus",
     "items": [
       {{"label": "Denda Resmi OJK", "val_str": "Rp 2,1 T", "val": 2.1}},
       {{"label": "Komitmen Beli Balik", "val_str": "Rp 5,0 T", "val": 5.0}},
       {{"label": "Valuasi Tergerus", "val_str": "Rp 85 T", "val": 85.0}}
     ]
-  },
+  }},
   "slide4_eyebrow": "03 / SKENARIO STRATEGIS",
   "slide4_hook": "Tiga Realita Telanjang: <red>Siapa yang Buntung</red>, Siapa yang Menang Banyak?",
   "slide4_scenarios": [
     {{"tag": "REALITA KORBAN RITEL", "text": "**Pemberian Nasihat Klise:** Alih-alih mendapat perlindungan dana, investor ritel hanya disuguhi imbauan normatif 'jangan FOMO' dan 'pelajari laporan keuangan', sementara bandar sudah mengamankan cuan."}},
-    {{"tag": "MANUVER TAIPAN & KONGSI", "text": "**Aksi Beli Balik Kosmetik:** Pengumuman rencana pembelian kembali saham bernilai triliunan dilempar ke media sebagai peredam sentimen negatif, meski realisasi di lapangan kerap berjalan lamban."}},
+    {{"tag": "MANUVER BANDAR & TAIPAN", "text": "**Aksi Beli Balik Kosmetik:** Pengumuman rencana pembelian kembali saham bernilai triliunan dilempar ke media sebagai peredam sentimen negatif, meski realisasi di lapangan kerap berjalan lamban."}},
     {{"tag": "ILUSI PENGAWASAN REGULATOR", "text": "**Retorika Penegakan Hukum:** Janji evaluasi tata kelola dan reformasi bursa kembali diulang-ulang layaknya kaset rusak, tanpa ada reformasi struktural yang melindungi uang investor publik."}}
   ],
   "slide4_takeaway": "Di pasar modal yang belum transparan, optimisme tanpa data adalah jalan tercepat menuju kebangkrutan finansial.",
