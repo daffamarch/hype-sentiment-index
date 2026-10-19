@@ -10,7 +10,7 @@ Sistem foto:
   link berita RSS (Detik, Kompas, CNBC, dll). Link Google News otomatis di-resolve ke URL penerbit.
 - Slide 2-5: foto tematik dari TOPIC_IMAGE_REGISTRY (retail, staples, fuel, macro, gold, stocks,
   automotive, general) dengan pencocokan kategori berbasis skor kata kunci.
-  Prioritas: pustaka lokal (photo_library/<kategori>/*.jpg) -> registry URL -> kategori general.
+  Prioritas: pustaka lokal (photo_library/<kategori>/*.jpg) -> artikel terkait -> stok API -> registry URL.
 
 Utilitas:
   python pipeline_media.py --check-images     # uji semua URL di TOPIC_IMAGE_REGISTRY
@@ -44,7 +44,7 @@ from PIL import Image, ImageOps
 from metrika_render import render_carousel_slides, strip_emoji, strip_emoji_deep
 
 # ==============================================================================
-# 1. KONFIGURASI GLOBAL
+# 1. KONFIGURASI GLOBAL & ZONA WAKTU
 # ==============================================================================
 MEDIA_NAME = os.environ.get("MEDIA_NAME", "METRIKA").strip()
 PROGRAM_OVERRIDE = os.environ.get("PROGRAM_OVERRIDE", "").strip().upper()
@@ -63,6 +63,12 @@ PREFERRED_GEMINI_MODELS = [
     "gemini-1.5-pro",
 ]
 
+# Kunci Zona Waktu Indonesia Barat (WIB = UTC+7) untuk runner GitHub Actions
+WIB = datetime.timezone(datetime.timedelta(hours=7))
+
+def get_now_wib() -> datetime.datetime:
+    return datetime.datetime.now(WIB)
+
 CACHE_FILE = Path("posted_links.txt")
 OUTPUT_DIR = Path("output_media")
 CAROUSEL_DIR = OUTPUT_DIR / "carousel"
@@ -78,7 +84,6 @@ SLIDE_IMG_PATHS: Dict[str, Path] = {
 
 PEXELS_API_KEY = os.environ.get("PEXELS_API_KEY", "").strip()
 UNSPLASH_ACCESS_KEY = os.environ.get("UNSPLASH_ACCESS_KEY", "").strip()
-# Registry statis TIDAK dipakai kecuali diaktifkan eksplisit (USE_REGISTRY_FALLBACK=1): ID-nya tidak terjamin relevan.
 SMART_PHOTO = os.environ.get("SMART_PHOTO", "1").strip() != "0"
 CAND_DIR = Path("output_media") / "_cand"
 USE_REGISTRY_FALLBACK = os.environ.get("USE_REGISTRY_FALLBACK", "").strip() == "1"
@@ -91,91 +96,82 @@ HTTP_HEADERS = {
     "Accept-Language": "id-ID,id;q=0.9,en;q=0.7",
 }
 
-MIN_COVER_WIDTH = 600      # og:image lebih kecil dari ini dianggap buram / logo
+MIN_COVER_WIDTH = 600
 MIN_REGISTRY_WIDTH = 800
 
 
 # ==============================================================================
 # 2. REGISTRY FOTO TEMATIK (SLIDE 2-5)
 # ==============================================================================
-# CATATAN: ID Unsplash di bawah adalah kurasi manual. Jalankan `--check-images` untuk
-# memverifikasi semuanya dari jaringanmu; URL yang mati otomatis dilewati dan digantikan
-# kandidat berikutnya. Untuk kualitas paling terjamin, taruh foto sendiri di
-# photo_library/<kategori>/ (prioritas tertinggi).
 def _u(photo_id: str) -> str:
     return f"https://images.unsplash.com/{photo_id}?auto=format&fit=crop&w=1200&q=80"
 
 
 TOPIC_IMAGE_REGISTRY: Dict[str, List[str]] = {
-    # Ritel / konsumsi / minimarket: lorong supermarket, keranjang, kasir, rak diskon
     "retail": [
-        _u("photo-1542838132-92c53300491e"),  # lorong supermarket
-        _u("photo-1578916171728-46686eac8d58"),  # rak supermarket
-        _u("photo-1604719312566-8912e9227c6a"),  # belanja kebutuhan
-        _u("photo-1534723452862-4c874018d66d"),  # rak barang
-        _u("photo-1556742049-0cfed4f6a45d"),  # pembayaran di kasir
-        _u("photo-1556740738-b6a63e27c4df"),  # transaksi kasir toko
-        _u("photo-1583258292688-d0213dc5a3a8"),  # keranjang belanja
-        _u("photo-1607082348824-0a96f2a4b9da"),  # promo / diskon
+        _u("photo-1542838132-92c53300491e"),
+        _u("photo-1578916171728-46686eac8d58"),
+        _u("photo-1604719312566-8912e9227c6a"),
+        _u("photo-1534723452862-4c874018d66d"),
+        _u("photo-1556742049-0cfed4f6a45d"),
+        _u("photo-1556740738-b6a63e27c4df"),
+        _u("photo-1583258292688-d0213dc5a3a8"),
+        _u("photo-1607082348824-0a96f2a4b9da"),
     ],
-    # Sembako / pangan: beras, minyak goreng, pasar tradisional
     "staples": [
-        _u("photo-1586201375761-83865001e31c"),  # beras
-        _u("photo-1536304993881-ff6e9eefa2a6"),  # padi / beras
-        _u("photo-1474979266404-7eaacbcd87c5"),  # minyak goreng
-        _u("photo-1488459716781-31db52582fe9"),  # pasar tradisional
-        _u("photo-1610348725531-843dff563e2c"),  # pasar sayur
-        _u("photo-1542838132-92c53300491e"),  # bahan pangan di toko
+        _u("photo-1586201375761-83865001e31c"),
+        _u("photo-1536304993881-ff6e9eefa2a6"),
+        _u("photo-1474979266404-7eaacbcd87c5"),
+        _u("photo-1488459716781-31db52582fe9"),
+        _u("photo-1610348725531-843dff563e2c"),
+        _u("photo-1542838132-92c53300491e"),
     ],
-    # Energi / SPBU: SPBU malam, nozzle, antrean kendaraan
     "fuel": [
-        _u("photo-1545454675-3531b543be5d"),  # SPBU & nozzle
-        _u("photo-1506521781263-d8422e82f27a"),  # antrean mobil
-        _u("photo-1518709268805-4e9042af9f23"),  # kilang minyak
-        _u("photo-1584345604476-8ec5e12e42dd"),  # indikator bensin
-        _u("photo-1558981403-c5f9899a28bc"),  # lalu lintas motor
+        _u("photo-1545454675-3531b543be5d"),
+        _u("photo-1506521781263-d8422e82f27a"),
+        _u("photo-1518709268805-4e9042af9f23"),
+        _u("photo-1584345604476-8ec5e12e42dd"),
+        _u("photo-1558981403-c5f9899a28bc"),
     ],
-    # Makro / rupiah: uang fisik, dompet, transaksi perbankan
     "macro": [
-        _u("photo-1580519542036-c47de6196ba5"),  # uang kertas
-        _u("photo-1526304640581-d334cdbbf45e"),  # valuta asing
-        _u("photo-1563013544-824ae1b704d3"),  # transaksi kartu / bank
-        _u("photo-1554224155-6726b3ff858f"),  # kalkulator & keuangan
-        _u("photo-1578632767115-351597cf2477"),  # pusat bisnis
-        _u("photo-1611974789855-9c2a0a7236a3"),  # grafik ekonomi
+        _u("photo-1580519542036-c47de6196ba5"),
+        _u("photo-1526304640581-d334cdbbf45e"),
+        _u("photo-1563013544-824ae1b704d3"),
+        _u("photo-1554224155-6726b3ff858f"),
+        _u("photo-1578632767115-351597cf2477"),
+        _u("photo-1611974789855-9c2a0a7236a3"),
     ],
     "gold": [
-        _u("photo-1610375461246-83df859d849d"),  # emas batangan
-        _u("photo-1509718443690-d8e2fb3474b7"),  # koin emas
-        _u("photo-1642543492481-44e81e3914a7"),  # grafik komoditas
-        _u("photo-1565372195458-9de0b320ef04"),  # brankas
-        _u("photo-1454165804606-c3d57bc86b40"),  # keputusan investor
+        _u("photo-1610375461246-83df859d849d"),
+        _u("photo-1509718443690-d8e2fb3474b7"),
+        _u("photo-1642543492481-44e81e3914a7"),
+        _u("photo-1565372195458-9de0b320ef04"),
+        _u("photo-1454165804606-c3d57bc86b40"),
     ],
     "stocks": [
-        _u("photo-1590283603385-17ffb3a7f29f"),  # layar bursa
-        _u("photo-1611974789855-9c2a0a7236a3"),  # candlestick
-        _u("photo-1486406146926-c627a92ad1ab"),  # gedung bursa
-        _u("photo-1551288049-bebda4e38f71"),  # dashboard analitik
-        _u("photo-1517048676732-d65bc937f952"),  # diskusi investor
+        _u("photo-1590283603385-17ffb3a7f29f"),
+        _u("photo-1611974789855-9c2a0a7236a3"),
+        _u("photo-1486406146926-c627a92ad1ab"),
+        _u("photo-1551288049-bebda4e38f71"),
+        _u("photo-1517048676732-d65bc937f952"),
     ],
     "automotive": [
-        _u("photo-1533473359331-0135ef1b58bf"),  # SUV di jalan
-        _u("photo-1545454675-3531b543be5d"),  # isi bahan bakar
-        _u("photo-1506521781263-d8422e82f27a"),  # antrean kendaraan
-        _u("photo-1584345604476-8ec5e12e42dd"),  # dashboard mobil
-        _u("photo-1492144534655-ae79c964c9d7"),  # lalu lintas kota
+        _u("photo-1533473359331-0135ef1b58bf"),
+        _u("photo-1545454675-3531b543be5d"),
+        _u("photo-1506521781263-d8422e82f27a"),
+        _u("photo-1584345604476-8ec5e12e42dd"),
+        _u("photo-1492144534655-ae79c964c9d7"),
     ],
     "general": [
-        _u("photo-1486406146926-c627a92ad1ab"),  # gedung bisnis
-        _u("photo-1611974789855-9c2a0a7236a3"),  # grafik data
-        _u("photo-1580519542036-c47de6196ba5"),  # uang & perbankan
-        _u("photo-1578632767115-351597cf2477"),  # pusat bisnis metropolitan
-        _u("photo-1590283603385-17ffb3a7f29f"),  # analisis & keputusan
+        _u("photo-1486406146926-c627a92ad1ab"),
+        _u("photo-1611974789855-9c2a0a7236a3"),
+        _u("photo-1580519542036-c47de6196ba5"),
+        _u("photo-1578632767115-351597cf2477"),
+        _u("photo-1590283603385-17ffb3a7f29f"),
     ],
 }
 CATEGORY_ALIASES = {"currency": "macro", "rupiah": "macro", "retail_consumer": "retail", "food": "staples"}
 
-# Kata kunci berbobot. Merek ritel diberi bobot tertinggi agar "saham Alfamart" -> RETAIL, bukan STOCKS.
 TOPIC_KEYWORDS: Dict[str, List[Tuple[str, int]]] = {
     "retail": [
         ("alfamart", 6), ("indomaret", 6), ("alfamidi", 6), ("hypermart", 6), ("transmart", 6),
@@ -213,7 +209,6 @@ CATEGORY_PRIORITY = ["retail", "staples", "fuel", "gold", "stocks", "macro", "au
 
 
 def detect_topic_category(text: str, ai_hint: str = "") -> str:
-    """Pilih kategori foto berdasarkan skor kata kunci; petunjuk AI dipakai hanya jika skor nol."""
     t = " " + re.sub(r"\s+", " ", re.sub(r"[^a-z0-9 ]+", " ", text.lower())) + " "
     scores: Dict[str, int] = {}
     for cat, kws in TOPIC_KEYWORDS.items():
@@ -232,10 +227,9 @@ def detect_topic_category(text: str, ai_hint: str = "") -> str:
 
 
 # ==============================================================================
-# 3. PENJADWALAN PROGRAM
+# 3. PENJADWALAN PROGRAM (BERDASARKAN ZONA WAKTU WIB)
 # ==============================================================================
 GN = "https://news.google.com/rss"
-# Feed langsung penerbit (link langsung, og:image andal). Best-effort: feed yang gagal dilewati.
 DIRECT_FEEDS = [
     "https://www.cnbcindonesia.com/market/rss",
     "https://www.cnbcindonesia.com/news/rss",
@@ -248,7 +242,7 @@ def get_daily_program_config() -> Dict[str, Any]:
     if PROGRAM_OVERRIDE in ("INDEKS_KERINGAT", "RADAR_SENTIMEN", "ANGKA_BICARA"):
         p_id = PROGRAM_OVERRIDE
     else:
-        weekday = datetime.datetime.now().weekday()
+        weekday = get_now_wib().weekday()
         p_id = "INDEKS_KERINGAT" if weekday in (0, 3) else "RADAR_SENTIMEN" if weekday in (1, 4) else "ANGKA_BICARA"
 
     if p_id == "INDEKS_KERINGAT":
@@ -330,9 +324,7 @@ def fetch_candidates(prog_cfg: Dict[str, Any]) -> List[Dict[str, str]]:
     return out
 
 
-# ---------- Resolver link Google News -> URL penerbit asli ----------
 def resolve_google_news_url(url: str) -> str:
-    """Best-effort: ubah link news.google.com/rss/articles/... menjadi URL artikel penerbit."""
     if "news.google.com" not in url:
         return url
     m = re.search(r"/articles/([^?/#]+)", url)
@@ -340,7 +332,6 @@ def resolve_google_news_url(url: str) -> str:
         return url
     art_id = m.group(1)
 
-    # (a) Format lama: ID berupa base64 yang memuat URL asli
     try:
         raw = base64.urlsafe_b64decode(art_id + "=" * (-len(art_id) % 4))
         mm = re.search(rb"https?://[^\x00-\x20\"'<>\x7f-\xff]+", raw)
@@ -349,7 +340,6 @@ def resolve_google_news_url(url: str) -> str:
     except Exception:
         pass
 
-    # (b) Redirect biasa
     try:
         r = requests.get(url, headers=HTTP_HEADERS, timeout=12, allow_redirects=True)
         if "news.google.com" not in urlparse(r.url).netloc:
@@ -358,7 +348,6 @@ def resolve_google_news_url(url: str) -> str:
     except Exception:
         page = ""
 
-    # (c) Format baru: tukar signature via batchexecute
     try:
         if not page:
             page = requests.get(f"https://news.google.com/rss/articles/{art_id}",
@@ -387,7 +376,6 @@ def resolve_google_news_url(url: str) -> str:
     return url
 
 
-# ---------- Ekstraksi og:image ----------
 META_RE = re.compile(r"<meta\s+[^>]*>", re.I)
 ATTR_RE = re.compile(r'([\w:-]+)\s*=\s*(?:"([^"]*)"|\'([^\']*)\')')
 OG_KEYS = ("og:image:secure_url", "og:image", "og:image:url", "twitter:image", "twitter:image:src")
@@ -409,7 +397,6 @@ def extract_og_images(page_html: str, base_url: str) -> List[str]:
 
 
 def upgrade_image_url(u: str) -> str:
-    """Naikkan parameter resize (w=650 -> w=1200) bila ada, agar cover tajam."""
     try:
         p = urlparse(u)
         q = parse_qs(p.query)
@@ -423,7 +410,6 @@ def upgrade_image_url(u: str) -> str:
 
 
 def download_image(url: str, path: Path, min_width: int = 0, referer: str = "") -> bool:
-    """Unduh -> validasi -> simpan JPEG. True bila lolos."""
     try:
         headers = dict(HTTP_HEADERS)
         if referer:
@@ -442,7 +428,6 @@ def download_image(url: str, path: Path, min_width: int = 0, referer: str = "") 
 
 
 def fetch_cover_from_article(article_url: str, dest: Path) -> Optional[str]:
-    """Ambil og:image dari halaman artikel; kembalikan nama domain penerbit bila sukses."""
     try:
         r = requests.get(article_url, headers=HTTP_HEADERS, timeout=15, allow_redirects=True)
         final = r.url
@@ -461,13 +446,12 @@ def fetch_cover_from_article(article_url: str, dest: Path) -> Optional[str]:
 
 
 def select_news_with_cover(candidates: List[Dict[str, str]], max_try: int = 6) -> Tuple[Dict[str, str], List[str]]:
-    """Pilih berita pertama yang og:image-nya valid. Jika tak ada, pakai berita pertama (foto dari registry)."""
     if not candidates:
         candidates = [{
             "title": "Antrean Panjang di Gerai Ritel dan SPBU Saat Harga Kebutuhan Pokok Naik",
-            "link": f"https://metrika.id/fallback/{datetime.date.today()}",
+            "link": f"https://metrika.id/fallback/{get_now_wib().date()}",
             "summary": "Kenaikan harga kebutuhan harian memicu lonjakan belanja dan antrean di berbagai gerai.",
-            "published": str(datetime.date.today()),
+            "published": str(get_now_wib().date()),
         }]
     chosen: Optional[Dict[str, str]] = None
     for item in candidates[:max_try]:
@@ -489,7 +473,7 @@ def select_news_with_cover(candidates: List[Dict[str, str]], max_try: int = 6) -
 
 
 # ==============================================================================
-# 5. MESIN FOTO TEMATIK (SLIDE 2-5, ATAU 1-5 JIKA og:image GAGAL)
+# 5. MESIN FOTO TEMATIK (SLIDE 2-5)
 # ==============================================================================
 def local_library_files(category: str) -> List[Path]:
     d = PHOTO_LIBRARY_DIR / category
@@ -499,7 +483,6 @@ def local_library_files(category: str) -> List[Path]:
 
 
 def make_placeholder(path: Path) -> None:
-    """Cadangan terakhir: gradien coklat (hanya jika SEMUA sumber foto gagal)."""
     im = Image.new("RGB", (1200, 800))
     px = im.load()
     for y in range(800):
@@ -514,7 +497,6 @@ def file_md5(path: Path) -> str:
 
 
 def stock_search_urls(query: str, limit: int = 8) -> List[str]:
-    """Cari foto stok relevan lewat API resmi (butuh PEXELS_API_KEY dan/atau UNSPLASH_ACCESS_KEY)."""
     out: List[str] = []
     try:
         if PEXELS_API_KEY:
@@ -534,7 +516,6 @@ def stock_search_urls(query: str, limit: int = 8) -> List[str]:
 
 
 def collect_related_article_photos(query: str, news_item: Dict[str, str], need: int) -> List[Path]:
-    """Ambil og:image dari artikel LAIN tentang topik yang sama (foto jurnalistik pasti relevan)."""
     results: List[Path] = []
     if feedparser is None or not query:
         return results
@@ -568,15 +549,6 @@ def collect_related_article_photos(query: str, news_item: Dict[str, str], need: 
 
 def fill_photos(category: str, seed: int, targets: List[Path], news_item: Dict[str, str],
                 analysis: Dict[str, Any]) -> None:
-    """
-    Urutan sumber per slide (semua relevan topik):
-      1. photo_library/<kategori>/ (foto kurasi sendiri)
-      2. og:image artikel lain tentang topik yang sama
-      3. API foto stok (Pexels/Unsplash) dengan query khusus per slide dari AI
-      4. memakai ulang foto cover (relevan 100%)
-      5. registry statis (hanya jika USE_REGISTRY_FALLBACK=1)
-      6. placeholder coklat
-    """
     rng = random.Random(seed)
     local = local_library_files(category)
     rng.shuffle(local)
@@ -591,7 +563,6 @@ def fill_photos(category: str, seed: int, targets: List[Path], news_item: Dict[s
 
     for i, target in enumerate(targets):
         ok = False
-        # 1. pustaka lokal
         while local and not ok:
             src = local.pop(0)
             try:
@@ -600,14 +571,12 @@ def fill_photos(category: str, seed: int, targets: List[Path], news_item: Dict[s
                 print(f"[Photo Engine] {target.name} <- pustaka lokal {src.name}")
             except Exception:
                 pass
-        # 2. artikel terkait
         if not ok:
             if rel_pool is None:
                 rel_pool = collect_related_article_photos(search_q, news_item, len(targets))
             if rel_pool:
                 shutil.copyfile(rel_pool.pop(0), target)
                 ok = True
-        # 3. API foto stok
         if not ok and (PEXELS_API_KEY or UNSPLASH_ACCESS_KEY):
             q = queries[i % len(queries)] if queries else search_q
             for u in stock_search_urls(q):
@@ -618,16 +587,13 @@ def fill_photos(category: str, seed: int, targets: List[Path], news_item: Dict[s
                     ok = True
                     print(f"[Photo Engine] {target.name} <- stok '{q}'")
                     break
-        # 4. pakai ulang cover
         if not ok and cover.exists() and target != cover:
             shutil.copyfile(cover, target)
             ok = True
             print(f"[Photo Engine] {target.name} <- memakai ulang foto cover")
-        # 5. registry (opsional)
         while USE_REGISTRY_FALLBACK and registry and not ok:
             u = registry.pop(0)
             ok = download_image(u, target, MIN_REGISTRY_WIDTH)
-        # 6. placeholder
         if not ok:
             print(f"[Photo Engine] PERINGATAN: tidak ada foto relevan untuk {target.name}; placeholder dipakai.")
             make_placeholder(target)
@@ -636,21 +602,12 @@ def fill_photos(category: str, seed: int, targets: List[Path], news_item: Dict[s
         f.unlink(missing_ok=True)
 
 
-# ==============================================================================
-# 5a. CROP WATERMARK (SUMBER TETAP DIKREDIT, TULISAN/LOGO PENERBIT DIPOTONG)
-# ==============================================================================
-# Fraksi tinggi bawah yang dipotong untuk penerbit yang watermark-nya diketahui.
 WATERMARK_FALLBACK = {"kompas.com": 0.14, "detik.com": 0.08, "cnbcindonesia.com": 0.08, "antaranews.com": 0.07}
 DEFAULT_BOTTOM_CROP = 0.07
 
 
 def compute_crop(boxes: List[List[float]], pad: float = 0.015, max_cut: float = 0.30,
                  min_keep_area: float = 0.62) -> Optional[Tuple[float, float, float, float]]:
-    """
-    boxes: [ymin, xmin, ymax, xmax] skala 0-1000 (format bounding box Gemini).
-    Pilih sisi terdekat untuk memotong tiap watermark. Hasil: (l, t, r, b) fraksi area yang DIPERTAHANKAN.
-    Watermark yang terlalu jauh dari tepi (di tengah foto) tidak dipotong.
-    """
     l, t, r, b = 0.0, 0.0, 1.0, 1.0
     any_cut = False
     for box in boxes:
@@ -675,7 +632,6 @@ def compute_crop(boxes: List[List[float]], pad: float = 0.015, max_cut: float = 
 
 
 def apply_watermark_crop(path: Path, boxes: Any) -> bool:
-    """Crop foto agar watermark/logo/kredit yang ditempel hilang. True bila ada pemotongan."""
     try:
         clean = [[float(x) for x in bx] for bx in (boxes or []) if isinstance(bx, (list, tuple)) and len(bx) == 4]
         keep = compute_crop(clean) if clean else None
@@ -702,9 +658,6 @@ def fixed_bottom_crop(path: Path, frac: float) -> None:
         print(f"[Watermark] Gagal crop {path.name}: {err}")
 
 
-# ==============================================================================
-# 5b. PEMILIH FOTO CERDAS (KANDIDAT BANYAK -> GEMINI VISION MENILAI -> TUGASKAN KE SLIDE)
-# ==============================================================================
 SLOT_KEYS = ["slide1", "slide2", "slide3", "slide4", "slide5"]
 SLOT_ROLES = {
     "slide1": "COVER: paling jelas, kuat secara visual, dan langsung mewakili inti berita",
@@ -755,7 +708,6 @@ BLOCKED_IMG_DOMAINS = (
 
 
 def web_image_search(query: str, limit: int = 10) -> List[Dict[str, str]]:
-    """Cari gambar di internet TANPA API key: DuckDuckGo (paket ddgs) lalu fallback scraping Bing Images."""
     results: List[Dict[str, str]] = []
 
     def keep(img: str, page: str, title: str) -> None:
@@ -767,7 +719,6 @@ def web_image_search(query: str, limit: int = 10) -> List[Dict[str, str]]:
         results.append({"image": img, "page": page, "title": title,
                         "domain": urlparse(page or img).netloc.lower().replace("www.", "")})
 
-    # 1. DuckDuckGo (pip install ddgs)
     try:
         try:
             from ddgs import DDGS
@@ -784,7 +735,6 @@ def web_image_search(query: str, limit: int = 10) -> List[Dict[str, str]]:
     except Exception as err:
         print(f"[Web Image] DuckDuckGo gagal/tidak terpasang: {err}")
 
-    # 2. Fallback: Bing Images
     if len(results) < 3:
         try:
             r = requests.get("https://www.bing.com/images/search",
@@ -799,7 +749,6 @@ def web_image_search(query: str, limit: int = 10) -> List[Dict[str, str]]:
 
 def gather_candidates(category: str, news_item: Dict[str, str], analysis: Dict[str, Any],
                       max_total: int = 24) -> List[Dict[str, Any]]:
-    """Kumpulkan kandidat dari: cover og:image, pustaka lokal, artikel terkait, foto stok. Buang duplikat visual."""
     if CAND_DIR.exists():
         shutil.rmtree(CAND_DIR, ignore_errors=True)
     CAND_DIR.mkdir(parents=True, exist_ok=True)
@@ -834,7 +783,6 @@ def gather_candidates(category: str, news_item: Dict[str, str], analysis: Dict[s
     for f in collect_related_article_photos(q, news_item, 8):
         add(f, "artikel")
         f.unlink(missing_ok=True)
-    # Pencarian gambar web (tanpa API key); Gemini Vision yang menyaring relevansinya
     for qq in [str(x) for x in (analysis.get("photo_queries") or [])[:4]] + [q]:
         got = 0
         for r in web_image_search(qq, 10):
@@ -844,7 +792,7 @@ def gather_candidates(category: str, news_item: Dict[str, str], analysis: Dict[s
             if download_image(r["image"], tmp, MIN_REGISTRY_WIDTH, referer=r.get("page", "")):
                 add(tmp, "web", {"domain": r["domain"], "title": r["title"]})
                 got += 1
-    if PEXELS_API_KEY or UNSPLASH_ACCESS_KEY:      # opsional, tidak wajib
+    if PEXELS_API_KEY or UNSPLASH_ACCESS_KEY:
         for qq in (analysis.get("photo_queries") or [])[:4]:
             n = 0
             for u in stock_search_urls(str(qq), 5):
@@ -862,7 +810,6 @@ def gather_candidates(category: str, news_item: Dict[str, str], analysis: Dict[s
 
 
 def ai_score_candidates(cands: List[Dict[str, Any]], news_item: Dict[str, str], analysis: Dict[str, Any]) -> List[Dict[str, Any]]:
-    """Gemini Vision menilai tiap foto 0-10 untuk tiap peran slide."""
     briefs = list(analysis.get("photo_queries") or [])
     roles = "\n".join(f"- s{i + 1} ({k}): {SLOT_ROLES[k]}" for i, k in enumerate(SLOT_KEYS))
     prompt = f"""Kamu adalah photo editor media berita. Nilai foto-foto kandidat untuk carousel 5 slide.
@@ -895,9 +842,8 @@ Kembalikan JSON murni: {{"scores":[{{"i":0,"s1":0,"s2":0,"s3":0,"s4":0,"s5":0,"r
 
 
 def assign_photos(cands: List[Dict[str, Any]], scores: List[Dict[str, Any]], min_score: float = 6.0) -> Dict[str, Optional[int]]:
-    """Penugasan unik kandidat -> slide (greedy skor tertinggi). Cover og:image dikunci jika masih layak."""
     key = {"slide1": "s1", "slide2": "s2", "slide3": "s3", "slide4": "s4", "slide5": "s5"}
-    def sc(i: int, slot: int) -> float:
+    def sc(i: int, slot: str) -> float:
         if scores[i].get("reject"):
             return 0.0
         try:
@@ -907,7 +853,7 @@ def assign_photos(cands: List[Dict[str, Any]], scores: List[Dict[str, Any]], min
     result: Dict[str, Optional[int]] = {k: None for k in SLOT_KEYS}
     used: set = set()
 
-    for i, c in enumerate(cands):                      # kunci cover asli bila layak
+    for i, c in enumerate(cands):
         if c["source"] == "cover" and sc(i, "slide1") >= 5:
             result["slide1"] = i
             used.add(i)
@@ -935,14 +881,13 @@ def smart_pick_photos(category: str, news_item: Dict[str, str], analysis: Dict[s
     for slot, i in picks.items():
         if i is None:
             continue
-        if not (slot == "slide1" and cands[i]["source"] == "cover"):   # cover asli sudah di tempatnya
+        if not (slot == "slide1" and cands[i]["source"] == "cover"):
             shutil.copyfile(cands[i]["path"], SLIDE_IMG_PATHS[slot])
             if slot == "slide1":
-                news_item["cover_credit"] = cands[i].get("domain", "")   # kredit mengikuti sumber baru
+                news_item["cover_credit"] = cands[i].get("domain", "")
         news_item.setdefault("photo_sources", {})[slot] = cands[i].get("domain") or cands[i]["source"]
         apply_watermark_crop(SLIDE_IMG_PATHS[slot], scores[i].get("wm"))
     shutil.rmtree(CAND_DIR, ignore_errors=True)
-    # slot kosong: pakai cover (relevan) atau lanjut ke jalur lama
     missing = [k for k in SLOT_KEYS if picks[k] is None and k != "slide1"]
     if missing and SLIDE_IMG_PATHS["slide1"].exists():
         for k in missing:
@@ -963,7 +908,7 @@ def prepare_images(news_item: Dict[str, str], analysis: Dict[str, Any]) -> Tuple
     if cover_path.exists() and domain:
         frac = next((v for k, v in WATERMARK_FALLBACK.items() if domain.endswith(k)), None)
         if frac is None and not (SMART_PHOTO and GEMINI_API_KEY):
-            frac = DEFAULT_BOTTOM_CROP          # tanpa AI: potong tipis bagian bawah, aman
+            frac = DEFAULT_BOTTOM_CROP
         if frac:
             fixed_bottom_crop(cover_path, frac)
 
@@ -983,7 +928,6 @@ def prepare_images(news_item: Dict[str, str], analysis: Dict[str, Any]) -> Tuple
 
 
 def check_registry_images() -> None:
-    """Uji seluruh URL registry: python pipeline_media.py --check-images"""
     tmp = OUTPUT_DIR / "_check.jpg"
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     bad = 0
@@ -997,7 +941,44 @@ def check_registry_images() -> None:
 
 
 # ==============================================================================
-# 6. OTAK AI: COPYWRITING INVESTIGASI
+# 5c. GENERATOR CHART SVG VEKTOR (SLIDE 3)
+# ==============================================================================
+def generate_metric_svg_chart(chart_title: str, items: list) -> Optional[str]:
+    """Menghasilkan SVG horizontal bar chart resolusi tinggi yang elegan dengan palet Metrika."""
+    if not items or len(items) < 2:
+        return None
+    try:
+        max_val = max((float(it.get("val", 1)) for it in items), default=1.0)
+        if max_val <= 0:
+            max_val = 1.0
+        w, h = 400, 250
+        title_esc = htmllib.escape(chart_title.upper()[:35])
+        svg = [
+            f'<svg width="100%" height="100%" viewBox="0 0 {w} {h}" xmlns="http://www.w3.org/2000/svg" style="display:block;">',
+            f'<rect width="{w}" height="{h}" fill="#22150E"/>',
+            f'<text x="24" y="32" fill="#D4C4B5" font-family="Plus Jakarta Sans, sans-serif" font-size="11" font-weight="900" letter-spacing="0.08em">{title_esc}</text>'
+        ]
+        start_y = 52
+        row_h = (h - start_y - 20) / max(len(items), 1)
+        for i, it in enumerate(items[:3]):
+            y = start_y + i * row_h
+            val_f = float(it.get("val", 1))
+            bar_w = max(14, int((val_f / max_val) * 230))
+            color = "#B91C1C" if i == 0 else "#8C5835"
+            lbl = htmllib.escape(str(it.get("label", ""))[:25])
+            val_s = htmllib.escape(str(it.get("val_str", ""))[:16])
+            svg.append(f'<text x="24" y="{y + 14}" fill="#FAF6F0" font-family="Plus Jakarta Sans, sans-serif" font-size="12" font-weight="700">{lbl}</text>')
+            svg.append(f'<rect x="24" y="{y + 22}" width="{bar_w}" height="18" rx="4" fill="{color}"/>')
+            svg.append(f'<text x="{24 + bar_w + 10}" y="{y + 36}" fill="#E2B792" font-family="Outfit, sans-serif" font-size="13" font-weight="900">{val_s}</text>')
+        svg.append('</svg>')
+        return "".join(svg)
+    except Exception as e:
+        print(f"[Chart] Gagal membuat SVG: {e}")
+        return None
+
+
+# ==============================================================================
+# 6. OTAK AI: COPYWRITING INVESTIGASI TAJAM & SATIR (ANTI-AI SLOP)
 # ==============================================================================
 @functools.lru_cache(maxsize=1)
 def get_available_gemini_models() -> List[str]:
@@ -1022,65 +1003,98 @@ def get_available_gemini_models() -> List[str]:
 
 def build_instructions() -> str:
     return f"""
-Kamu adalah Pemimpin Redaksi dan Direktur Kreatif media riset data investigasi "{MEDIA_NAME}" (setara @theeconomicinfluence, Bloomberg QuickTake, Visual Capitalist).
-Misi: ubah berita terpilih menjadi CAROUSEL 5 SLIDE dengan copywriting tajam kelas dunia, TEPAT sesuai topik berita (jangan menyimpang ke BBM jika beritanya tentang topik lain).
+Kamu adalah Pemimpin Redaksi dan Direktur Kreatif media riset data investigasi papan atas "{MEDIA_NAME}" (setara @theeconomicinfluence, Bloomberg QuickTake, Visual Capitalist).
+Misi: ubah berita harian menjadi CAROUSEL 5 SLIDE dengan COPYWRITING INVESTIGATIF TAJAM, SATIR, BERANI MENYINDIR KINERJA PEMERINTAH / REGULATOR, DAN 100% BEBAS DARI KLISE AI-SLOP.
 
-ATURAN MUTLAK:
-- DILARANG memakai emoji, emotikon, atau simbol gambar apa pun di seluruh output.
-- Tag <red>...</red> HANYA boleh di 'hook' cover dan 'slide2_hook' sampai 'slide5_hook'. JANGAN dipakai di poin, kartu, takeaway, verdict, atau cta.
-- DILARANG bahasa birokrat klise ("saatnya cermati", "dilema ekonomi nasional", "perlu ditingkatkan kesadaran").
-- Jangan mengarang angka. Jika angka resmi tidak ada di berita, pakai estimasi yang jelas berlabel "estimasi" atau perbandingan logis.
-- Teks akan tampil BESAR di layar HP dengan ruang terbatas: PATUHI BATAS PANJANG di bawah.
+STANDAR COPYWRITING INVESTIGATIF TAJAM (ANTI-AI SLOP & ANTI-BIROKRAT):
+1. DILARANG KERAS MENGGUNAKAN BAHASA HUMAS ATAU BIROKRAT KLISE:
+   - JANGAN PERNAH gunakan kalimat klise seperti: 'Saatnya cermati dampak', 'Langkah mitigasi risiko', 'Hindari FOMO', 'Lakukan due diligence', 'Berkomitmen memperketat pengawasan', 'Sinergi pemangku kepentingan', 'Perlu ditingkatkan kesadaran', 'Menjadi perhatian serius', 'Langkah preventif'. Itu basi dan membuat pembaca bosan!
+2. SARKASME & SINDIRAN REALITAS SISTEMIK (KINERJA PEMERINTAH / REGULATOR / KORPORASI KAKAP):
+   - Jika berita pasar modal/keuangan: Sindir regulator (OJK/BEI) yang sering kali "baru sibuk bikin konferensi pers setelah nasi jadi bubur", denda miliaran/triliunan yang cuma dianggap "uang tip/biaya operasional" oleh taipan, sementara investor ritel yang selalu tercekik di pucuk.
+   - Jika berita subsidi BBM/energi: Sindir wacana pembatasan dan antrean berjam-jam rakyat kecil di SPBU, sementara mobil mewah bebas menjarah jatah subsidi tanpa pengawasan tegas.
+   - Jika berita rupiah/anggaran/pangan: Soroti kontras antara pidato manis pejabat "ekonomi kita tangguh" dengan kenyataan dompet rakyat yang makin kempes dan harga kebutuhan pokok yang melambung.
+3. JUDUL / HOOK CLICKBAIT PROVOKATIF DI SETIAP SLIDE (SLIDE 1 SAMPAI 5):
+   - Setiap slide WAJIB memiliki hook dramatis/provokatif dengan 2-4 kata paling emosional yang DIBUNGKUS tag <red>...</red> agar menyala merah.
+   - Slide 1 (Cover Hook): Judul provokatif menggigit (maks 95 karakter). (Contoh: "Ketika Raksasa Goyang, <red>Triliunan Rupiah Investor Terancam</red>: Siapa yang Cuci Tangan?")
+   - Slide 2 (Context Hook): Pertanyaan tajam membongkar skandal (maks 80 karakter). (Contoh: "Denda Rp 2,1 Triliun: <red>Awal Badai Kehancuran</red> atau Sekadar Gertak Sambal?")
+   - Slide 3 (Metric Hook): Angka audit yang bikin tercengang (maks 80 karakter). (Contoh: "Berapa Ratus Triliun <red>Uang Rakyat yang Hangus</red> Akibat Permainan Bandar?")
+   - Slide 4 (Strategy Hook): Realita mitigasi tanpa pemanis buatan (maks 70 karakter). (Contoh: "Tiga Realita Telanjang: <red>Siapa yang Buntung</red>, Siapa yang Menang Banyak?")
+   - Slide 5 (Verdict Hook): Judul penutup yang menantang akuntabilitas (maks 60 karakter). (Contoh: "Verdict Investigasi: <red>Hukum Tajam ke Bawah</red>, Tumpul ke Taipan?")
+4. FORMAT PARAGRAF NARATIF YANG MENGALIR:
+   - DILARANG memakai emoji, emotikon, atau simbol gambar apa pun di seluruh teks.
+   - Slide 2: 3 poin investigasi yang diawali **Bold Lead-in Sinis** + 2 kalimat narasi fakta yang membongkar kronologi di lapangan (22-30 kata per poin).
+   - Slide 3: 2 kolom analisis berbentuk 2 paragraf narasi mengalir yang padat argumentasi (bukan bullet list kaku 1 baris).
+   - Slide 4: 3 kartu realita lapangan:
+     * Tag: "REALITA KORBAN RITEL / PUBLIK" -> Narasi tajam nasib publik/ritel yang jadi bantalan rugi.
+     * Tag: "MANUVER BANDAR & TAIPAN" -> Siasat cuci tangan atau beli balik kosmetik.
+     * Tag: "ILUSI PENGAWASAN REGULATOR" -> Sindiran pedas atas respons lamban pejabat/otoritas.
+   - Slide 5: Verdict pedas redaksi + 3 poin investigasi telak + CTA pertanyaan debat panas yang memicu warganet berkomentar.
+5. DATA GRAFIK KOMPARATIF (OPSIONAL):
+   - Jika berita memiliki 2-3 angka perbandingan yang jelas (misal denda vs valuasi, atau kuota subsidi vs realisasi bocor), isi field "chart_data". Jika tidak ada komparasi angka, isi null.
 
-SPESIFIKASI PER SLIDE:
-1. COVER "hook": maks 95 karakter, provokatif, sedikit satir, menyentuh kepentingan publik. Bungkus 2-4 kata paling emosional dengan <red>...</red>.
-   "hero_value": maks 10 karakter (contoh "16 Hari", "Rp 150 T+", "12,5%"). "hero_label": maks 90 karakter.
-2. SLIDE 2: "slide2_hook" berupa pertanyaan menohok, maks 80 karakter. "slide2_points": 3 poin, format "**Judul Singkat:** isi", judul maks 4 kata, isi 22-30 kata fakta mendalam. "slide2_takeaway": maks 130 karakter.
-3. SLIDE 3: "slide3_hook" angka audit yang bikin terperangah, maks 80 karakter. "slide3_metric_value": maks 10 karakter. "slide3_metric_label": maks 95 karakter. Dua kolom komparasi (judul maks 30 karakter), masing-masing 3 butir, 14-18 kata per butir. "slide3_alert_text": maks 130 karakter.
-4. SLIDE 4: "slide4_hook" panduan taktis, maks 70 karakter. "slide4_scenarios": 3 skenario untuk 3 kelompok berbeda, "tag" huruf kapital maks 32 karakter, "text" format "**Langkah:** isi" total 22-30 kata. "slide4_takeaway": maks 130 karakter.
-5. SLIDE 5: "slide5_hook" maks 60 karakter. "verdict": kutipan berbobot maks 180 karakter. "slide5_highlights": 3 butir, masing-masing 14-20 kata. "cta": pertanyaan pemantik komentar maks 150 karakter.
-6. "image_category": pilih SATU dari: retail, staples, fuel, macro, gold, stocks, automotive, general.
-7. "news_search_query": 2-4 kata kunci Indonesia paling spesifik untuk mencari artikel LAIN tentang topik yang sama (contoh: "motor listrik baterai").
-   "photo_queries": 4 kueri pencarian foto dalam bahasa INGGRIS (3-5 kata), konkret dan visual, masing-masing berbeda dan relevan dengan slide 2, 3, 4, 5 (contoh: "electric motorcycle battery pack", "mechanic repairing electric scooter", "motorcycle charging station city", "indonesian street motorbike traffic"). Jangan kueri abstrak.
-
-Format output: JSON murni tanpa markdown, tepat dengan kunci berikut (isi nilai sesuai topik berita):
+Format output: JSON murni tanpa markdown, tepat dengan kunci berikut:
 {{
   "subject_title": "judul topik maks 25 karakter",
   "image_category": "retail",
   "news_search_query": "...",
   "photo_queries": ["...", "...", "...", "..."],
-  "hook": "...",
-  "hero_value": "...",
-  "hero_label": "...",
+  "hook": "Ketika Raksasa Goyang, <red>Triliunan Rupiah Investor Terancam</red>: Siapa yang Cuci Tangan?",
+  "hero_value": "Rp 2,1 Triliun",
+  "hero_label": "denda resmi ojk yang dipandang sekadar biaya operasional konglomerat",
   "slide2_eyebrow": "01 / DOKUMENTASI FAKTA",
-  "slide2_hook": "...",
-  "slide2_points": ["**Judul:** isi", "**Judul:** isi", "**Judul:** isi"],
-  "slide2_takeaway": "...",
+  "slide2_hook": "Denda Rp 2,1 Triliun: <red>Awal Badai Kehancuran</red> atau Sekadar Gertak Sambal?",
+  "slide2_points": [
+    "**Sanksi yang Terlambat Datang:** Regulator baru sibuk menjatuhkan denda triliunan setelah harga saham anjlok puluhan persen dan ribuan investor ritel terlanjur menelan kerugian masif di pasar reguler.",
+    "**Skandal Transaksi Semu:** Modus perdagangan semu dan transaksi afiliasi tersembunyi dibiarkan berlangsung berbulan-bulan di bawah radar pengawasan bursa sebelum akhirnya resmi dipersoalkan.",
+    "**Guncangan Indeks Saham:** Penurunan harga saham-saham grup konglomerasi ini langsung menyeret IHSG ke zona merah, membuktikan betapa rapuhnya bursa ketika didominasi segelintir raksasa."
+  ],
+  "slide2_takeaway": "Denda administratif sebesar apa pun tidak akan pernah mengembalikan modal investor kecil yang terlanjur hangus terbakar.",
   "slide3_eyebrow": "02 / BEDAH DATA RISET",
-  "slide3_hook": "...",
-  "slide3_metric_value": "...",
-  "slide3_metric_label": "...",
-  "slide3_col1_title": "...",
-  "slide3_col1_points": ["...", "...", "..."],
-  "slide3_col2_title": "...",
-  "slide3_col2_points": ["...", "...", "..."],
-  "slide3_alert_text": "...",
+  "slide3_hook": "Berapa Ratus Triliun <red>Nilai Portofolio yang Hangus</red> di Meja Permainan?",
+  "slide3_metric_value": "Rp 2,1 T",
+  "slide3_metric_label": "nilai denda ojk yang cuma seujung kuku dibanding ratusan triliun kapitalisasi pasar",
+  "slide3_col1_title": "Beban Nyata Investor Ritel",
+  "slide3_col1_points": [
+    "**Modal Hangus di Pucuk:** Investor ritel yang terbujuk narasi optimisme saham hijau dan promosi influencer mendadak terkunci di harga pucuk tanpa kesempatan keluar saat suspensi perdagangan dibuka.",
+    "**Panik Berantai:** Efek domino penurunan harga saham konglomerasi memicu gelombang forced selling pada akun margin ritel, memperparah kerugian pribadi hingga titik terendah."
+  ],
+  "slide3_col2_title": "Ilusi Ketegasan Regulator",
+  "slide3_col2_points": [
+    "**Denda Cuma Uang Tip?:** Bagi emiten berkapitalisasi ratusan triliun, denda beberapa triliun rupiah sering kali cuma dicatat sebagai pos biaya operasional biasa tanpa sanksi pidana pasar modal yang nyata.",
+    "**Pengawasan Selalu Reaktif:** Otoritas pengawas selalu baru bersuara keras setelah publik dan media ramai membongkar kejanggalan transaksi, bukan lewat deteksi algoritma pencegahan dini."
+  ],
+  "slide3_alert_text": "Ketika pengawasan pasar modal berjalan lambat, biaya kelalaian regulasi selalu ditagihkan ke kantong investor ritel.",
+  "chart_data": {
+    "title": "Denda vs Komitmen Beli Balik vs Valuasi Tergerus",
+    "items": [
+      {{"label": "Denda Resmi OJK", "val_str": "Rp 2,1 T", "val": 2.1}},
+      {{"label": "Komitmen Beli Balik", "val_str": "Rp 5,0 T", "val": 5.0}},
+      {{"label": "Valuasi Tergerus", "val_str": "Rp 85 T", "val": 85.0}}
+    ]
+  },
   "slide4_eyebrow": "03 / SKENARIO STRATEGIS",
-  "slide4_hook": "...",
-  "slide4_scenarios": [{{"tag": "SKENARIO ...", "text": "**Langkah:** isi"}}, {{"tag": "SKENARIO ...", "text": "..."}}, {{"tag": "SKENARIO ...", "text": "..."}}],
-  "slide4_takeaway": "...",
+  "slide4_hook": "Tiga Realita Telanjang: <red>Siapa yang Buntung</red>, Siapa yang Menang Banyak?",
+  "slide4_scenarios": [
+    {{"tag": "REALITA KORBAN RITEL", "text": "**Pemberian Nasihat Klise:** Alih-alih mendapat perlindungan dana, investor ritel hanya disuguhi imbauan normatif 'jangan FOMO' dan 'pelajari laporan keuangan', sementara bandar sudah mengamankan cuan."}},
+    {{"tag": "MANUVER TAIPAN & KONGSI", "text": "**Aksi Beli Balik Kosmetik:** Pengumuman rencana pembelian kembali saham bernilai triliunan dilempar ke media sebagai peredam sentimen negatif, meski realisasi di lapangan kerap berjalan lamban."}},
+    {{"tag": "ILUSI PENGAWASAN REGULATOR", "text": "**Retorika Penegakan Hukum:** Janji evaluasi tata kelola dan reformasi bursa kembali diulang-ulang layaknya kaset rusak, tanpa ada reformasi struktural yang melindungi uang investor publik."}}
+  ],
+  "slide4_takeaway": "Di pasar modal yang belum transparan, optimisme tanpa data adalah jalan tercepat menuju kebangkrutan finansial.",
   "slide5_eyebrow": "04 / KESIMPULAN RISET",
-  "slide5_hook": "...",
-  "verdict": "...",
-  "slide5_highlights": ["...", "...", "..."],
-  "cta": "...",
-  "sources": ["sumber resmi relevan 1", "sumber resmi relevan 2", "sumber resmi relevan 3"]
+  "slide5_hook": "Verdict Investigasi: <red>Hukum Tajam ke Bawah</red>, Tumpul ke Taipan?",
+  "verdict": "Denda Rp 2,1 triliun adalah bukti nyata bobroknya pengawasan preventif. Jangan bangga menghukum raksasa setelah ribuan rakyat kecil kehilangan tabungan hidupnya.",
+  "slide5_highlights": [
+    "Denda administratif tanpa sanksi pencopotan manajemen dan audit forensik hanya menjadi sandiwara penegakan hukum.",
+    "Otoritas wajib membuka rekaman transaksi mencurigakan secara transparan, bukan sekadar merilis angka denda ke publik.",
+    "Perlindungan investor ritel tidak boleh berhenti pada retorika edukasi, melainkan kompensasi kerugian atas manipulasi terbukti."
+  ],
+  "cta": "Menurutmu, apakah denda Rp 2,1 triliun ini cukup bikin jera para konglomerat pasar modal, atau sekadar formalitas cari muka regulator? Tulis komentarmu!",
+  "sources": ["Otoritas Jasa Keuangan (OJK)", "Bursa Efek Indonesia (BEI)", "Bloomberg Technoz"]
 }}
 """.strip()
 
 
 def normalize_analysis(a: Dict[str, Any]) -> Dict[str, Any]:
-    """Pastikan tipe data hasil AI sesuai skema renderer (list tetap list, dict tetap dict, maks 3 butir)."""
     def as_list(v: Any) -> List[Any]:
         if isinstance(v, list):
             return v
@@ -1132,7 +1146,7 @@ Kembalikan HANYA JSON murni tanpa markdown.""".strip()
             if res.status_code == 200:
                 raw = res.json()["candidates"][0]["content"]["parts"][0]["text"]
                 cleaned = re.sub(r"^```(?:json)?\s*|\s*```$", "", raw.strip())
-                parsed = normalize_analysis(strip_emoji_deep(json.loads(cleaned)))   # 0% emoji + tipe data aman
+                parsed = normalize_analysis(strip_emoji_deep(json.loads(cleaned)))
                 parsed["_model_used"] = model_name
                 print(f"[Gemini] Sukses: {parsed.get('subject_title')}")
                 return parsed
@@ -1149,9 +1163,14 @@ def build_metrika_content(
     analysis: Dict[str, Any], prog_cfg: Dict[str, Any], images: Dict[str, Path], news_item: Dict[str, str]
 ) -> Dict[str, Any]:
     a = analysis
+    chart_svg = None
+    if a.get("chart_data") and isinstance(a.get("chart_data"), dict):
+        cd = a["chart_data"]
+        chart_svg = generate_metric_svg_chart(cd.get("title", "KOMPARASI DATA AUDIT"), cd.get("items", []))
+
     return {
         "program": prog_cfg["id"],
-        "date": datetime.datetime.now().strftime("%d %b %Y"),
+        "date": get_now_wib().strftime("%d %b %Y"),
         "hook": a.get("hook", "Analisis Data Finansial Hari Ini"),
         "hero": {
             "value": a.get("hero_value", "Data Kunci"),
@@ -1164,6 +1183,7 @@ def build_metrika_content(
         "slide3_image": str(images["slide3"]),
         "slide4_image": str(images["slide4"]),
         "slide5_image": str(images["slide5"]),
+        "chart_svg": chart_svg,
 
         "slide_context": {
             "eyebrow": a.get("slide2_eyebrow", "01 / DOKUMENTASI FAKTA"),
@@ -1181,30 +1201,30 @@ def build_metrika_content(
             "metric_value": a.get("slide3_metric_value", a.get("hero_value", "")),
             "metric_label": a.get("slide3_metric_label", "estimasi angka kunci dari data resmi"),
             "col1_title": a.get("slide3_col1_title", "Beban Konsumen"),
-            "col1_points": a.get("slide3_col1_points") or ["Pengeluaran harian naik.", "Daya beli tertekan.", "Pilihan belanja menyempit."],
-            "col2_title": a.get("slide3_col2_title", "Beban Pelaku Usaha"),
-            "col2_points": a.get("slide3_col2_points") or ["Margin usaha menipis.", "Biaya operasional naik.", "Perputaran barang melambat."],
-            "alert_text": a.get("slide3_alert_text", "Angka resmi perlu dibaca bersama dampak nyata di lapangan."),
+            "col1_points": a.get("slide3_col1_points") or ["Pengeluaran harian naik.", "Daya beli tertekan."],
+            "col2_title": a.get("slide3_col2_title", "Ilusi Pengawasan Regulator"),
+            "col2_points": a.get("slide3_col2_points") or ["Margin usaha menipis.", "Penegakan hukum reaktif."],
+            "alert_text": a.get("slide3_alert_text", "Ketika pengawasan berjalan lambat, biaya kelalaian ditagihkan ke kantong rakyat."),
         },
         "slide_strategy": {
             "eyebrow": a.get("slide4_eyebrow", "03 / SKENARIO STRATEGIS"),
-            "hook": a.get("slide4_hook", "Tiga Langkah Menghadapi Perubahan Ini"),
+            "hook": a.get("slide4_hook", "Tiga Realita Lapangan yang Tak Pernah Diungkap"),
             "scenarios": a.get("slide4_scenarios") or [
-                {"tag": "SKENARIO KONSUMEN", "text": "**Atur Prioritas:** Susun ulang anggaran bulanan dan kejar harga terbaik."},
-                {"tag": "SKENARIO PELAKU USAHA", "text": "**Efisiensi Biaya:** Tinjau stok, rantai pasok, dan strategi harga."},
-                {"tag": "SKENARIO PENGAWAS KEBIJAKAN", "text": "**Transparansi Data:** Publikasikan data agar publik bisa mengawasi."},
+                {"tag": "REALITA KORBAN RITEL", "text": "**Bantalan Kerugian:** Konsumen dan ritel selalu menanggung beban akhir."},
+                {"tag": "MANUVER TAIPAN", "text": "**Siasat Kosmetik:** Janji perbaikan sering kali hanya meredakan sentimen sesaat."},
+                {"tag": "ILUSI PENGAWASAN", "text": "**Formalitas Sanksi:** Sanksi administratif jarang memberikan efek jera nyata."},
             ],
-            "takeaway": a.get("slide4_takeaway", "Persiapan lebih awal selalu lebih murah daripada reaksi di menit terakhir."),
+            "takeaway": a.get("slide4_takeaway", "Di pasar yang asimetris, optimisme tanpa data adalah kerugian yang tertunda."),
         },
         "slide5_eyebrow": a.get("slide5_eyebrow", "04 / KESIMPULAN RISET"),
-        "slide5_hook": a.get("slide5_hook", "Verdict Riset dan Ruang Diskusi"),
-        "verdict": a.get("verdict", "Data berbicara lebih jujur daripada opini; publik berhak atas angka yang transparan."),
+        "slide5_hook": a.get("slide5_hook", "Verdict Riset & <red>Ruang Pengadilan Publik</red>"),
+        "verdict": a.get("verdict", "Data berbicara lebih jujur daripada opini; publik berhak atas transparansi yang nyata."),
         "slide5_highlights": a.get("slide5_highlights") or [
-            "Dampak terbesar jatuh pada kelompok dengan ruang anggaran paling sempit.",
-            "Respons kebijakan perlu diukur dengan data, bukan sekadar pernyataan.",
-            "Transparansi angka adalah syarat agar publik bisa menilai dengan adil.",
+            "Dampak terbesar selalu jatuh pada kelompok dengan ruang anggaran paling sempit.",
+            "Respons kebijakan perlu diukur dengan data audit, bukan sekadar rilis pers.",
+            "Transparansi penuh adalah syarat mutlak agar keadilan pasar ditegakkan.",
         ],
-        "cta": a.get("cta", "Menurutmu, siapa yang paling terdampak dan apa solusi paling masuk akal? Tulis di komentar."),
+        "cta": a.get("cta", "Menurutmu, siapa yang paling bertanggung jawab dan apa solusi paling adil? Tulis komentarmu."),
         "sources": a.get("sources") or prog_cfg["sources"],
     }
 
@@ -1276,18 +1296,18 @@ def main() -> None:
     candidates = fetch_candidates(prog_cfg)
     news_item, supporting = select_news_with_cover(candidates)
 
-    # 2. Analisis AI
+    # 2. Analisis AI (Copywriting Satir & Anti-AI Slop)
     analysis = analyze_with_gemini(news_item, supporting, prog_cfg)
 
     # 3. Foto tematik slide 2-5 (dan slide 1 bila og:image gagal)
     images, category = prepare_images(news_item, analysis)
 
-    # 4. Konten
+    # 4. Konten (termasuk SVG Chart bila ada data angka)
     content = build_metrika_content(analysis, prog_cfg, images, news_item)
     (OUTPUT_DIR / "latest_analysis.json").write_text(
         json.dumps({**content, "_image_category": category}, indent=2, ensure_ascii=False), encoding="utf-8")
 
-    # 5. Render
+    # 5. Render Playwright
     print("[Render] Memulai render 5 slide carousel 1080x1350...")
     carousel_files = render_carousel_slides(content, CAROUSEL_DIR)
     print(f"[Render] Sukses merender {len(carousel_files)} slide.")
@@ -1298,7 +1318,7 @@ def main() -> None:
     # 7. Cache
     save_posted_link(news_item["link"])
     print(f"[Cache] Link disimpan ke {CACHE_FILE}.")
-    print(f"PIPELINE {prog_cfg['name']} SELESAI.")
+    print(f"PIPELINE {prog_cfg['name']} SELESAI DENGAN SUKSES!")
 
 
 if __name__ == "__main__":
