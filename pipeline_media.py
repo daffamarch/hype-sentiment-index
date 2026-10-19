@@ -84,6 +84,7 @@ SLIDE_IMG_PATHS: Dict[str, Path] = {
 
 PEXELS_API_KEY = os.environ.get("PEXELS_API_KEY", "").strip()
 UNSPLASH_ACCESS_KEY = os.environ.get("UNSPLASH_ACCESS_KEY", "").strip()
+# Registry statis TIDAK dipakai kecuali diaktifkan eksplisit (USE_REGISTRY_FALLBACK=1)
 SMART_PHOTO = os.environ.get("SMART_PHOTO", "1").strip() != "0"
 CAND_DIR = Path("output_media") / "_cand"
 USE_REGISTRY_FALLBACK = os.environ.get("USE_REGISTRY_FALLBACK", "").strip() == "1"
@@ -109,65 +110,65 @@ def _u(photo_id: str) -> str:
 
 TOPIC_IMAGE_REGISTRY: Dict[str, List[str]] = {
     "retail": [
-        _u("photo-1542838132-92c53300491e"),
-        _u("photo-1578916171728-46686eac8d58"),
-        _u("photo-1604719312566-8912e9227c6a"),
-        _u("photo-1534723452862-4c874018d66d"),
-        _u("photo-1556742049-0cfed4f6a45d"),
-        _u("photo-1556740738-b6a63e27c4df"),
-        _u("photo-1583258292688-d0213dc5a3a8"),
-        _u("photo-1607082348824-0a96f2a4b9da"),
+        _u("photo-1542838132-92c53300491e"),  # lorong supermarket
+        _u("photo-1578916171728-46686eac8d58"),  # rak supermarket
+        _u("photo-1604719312566-8912e9227c6a"),  # belanja kebutuhan
+        _u("photo-1534723452862-4c874018d66d"),  # rak barang
+        _u("photo-1556742049-0cfed4f6a45d"),  # pembayaran di kasir
+        _u("photo-1556740738-b6a63e27c4df"),  # transaksi kasir toko
+        _u("photo-1583258292688-d0213dc5a3a8"),  # keranjang belanja
+        _u("photo-1607082348824-0a96f2a4b9da"),  # promo / diskon
     ],
     "staples": [
-        _u("photo-1586201375761-83865001e31c"),
-        _u("photo-1536304993881-ff6e9eefa2a6"),
-        _u("photo-1474979266404-7eaacbcd87c5"),
-        _u("photo-1488459716781-31db52582fe9"),
-        _u("photo-1610348725531-843dff563e2c"),
-        _u("photo-1542838132-92c53300491e"),
+        _u("photo-1586201375761-83865001e31c"),  # beras
+        _u("photo-1536304993881-ff6e9eefa2a6"),  # padi / beras
+        _u("photo-1474979266404-7eaacbcd87c5"),  # minyak goreng
+        _u("photo-1488459716781-31db52582fe9"),  # pasar tradisional
+        _u("photo-1610348725531-843dff563e2c"),  # pasar sayur
+        _u("photo-1542838132-92c53300491e"),  # bahan pangan di toko
     ],
     "fuel": [
-        _u("photo-1545454675-3531b543be5d"),
-        _u("photo-1506521781263-d8422e82f27a"),
-        _u("photo-1518709268805-4e9042af9f23"),
-        _u("photo-1584345604476-8ec5e12e42dd"),
-        _u("photo-1558981403-c5f9899a28bc"),
+        _u("photo-1545454675-3531b543be5d"),  # SPBU & nozzle
+        _u("photo-1506521781263-d8422e82f27a"),  # antrean mobil
+        _u("photo-1518709268805-4e9042af9f23"),  # kilang minyak
+        _u("photo-1584345604476-8ec5e12e42dd"),  # indikator bensin
+        _u("photo-1558981403-c5f9899a28bc"),  # lalu lintas motor
     ],
     "macro": [
-        _u("photo-1580519542036-c47de6196ba5"),
-        _u("photo-1526304640581-d334cdbbf45e"),
-        _u("photo-1563013544-824ae1b704d3"),
-        _u("photo-1554224155-6726b3ff858f"),
-        _u("photo-1578632767115-351597cf2477"),
-        _u("photo-1611974789855-9c2a0a7236a3"),
+        _u("photo-1580519542036-c47de6196ba5"),  # uang kertas
+        _u("photo-1526304640581-d334cdbbf45e"),  # valuta asing
+        _u("photo-1563013544-824ae1b704d3"),  # transaksi kartu / bank
+        _u("photo-1554224155-6726b3ff858f"),  # kalkulator & keuangan
+        _u("photo-1578632767115-351597cf2477"),  # pusat bisnis
+        _u("photo-1611974789855-9c2a0a7236a3"),  # grafik ekonomi
     ],
     "gold": [
-        _u("photo-1610375461246-83df859d849d"),
-        _u("photo-1509718443690-d8e2fb3474b7"),
-        _u("photo-1642543492481-44e81e3914a7"),
-        _u("photo-1565372195458-9de0b320ef04"),
-        _u("photo-1454165804606-c3d57bc86b40"),
+        _u("photo-1610375461246-83df859d849d"),  # emas batangan
+        _u("photo-1509718443690-d8e2fb3474b7"),  # koin emas
+        _u("photo-1642543492481-44e81e3914a7"),  # grafik komoditas
+        _u("photo-1565372195458-9de0b320ef04"),  # brankas
+        _u("photo-1454165804606-c3d57bc86b40"),  # keputusan investor
     ],
     "stocks": [
-        _u("photo-1590283603385-17ffb3a7f29f"),
-        _u("photo-1611974789855-9c2a0a7236a3"),
-        _u("photo-1486406146926-c627a92ad1ab"),
-        _u("photo-1551288049-bebda4e38f71"),
-        _u("photo-1517048676732-d65bc937f952"),
+        _u("photo-1590283603385-17ffb3a7f29f"),  # layar bursa
+        _u("photo-1611974789855-9c2a0a7236a3"),  # candlestick
+        _u("photo-1486406146926-c627a92ad1ab"),  # gedung bursa
+        _u("photo-1551288049-bebda4e38f71"),  # dashboard analitik
+        _u("photo-1517048676732-d65bc937f952"),  # diskusi investor
     ],
     "automotive": [
-        _u("photo-1533473359331-0135ef1b58bf"),
-        _u("photo-1545454675-3531b543be5d"),
-        _u("photo-1506521781263-d8422e82f27a"),
-        _u("photo-1584345604476-8ec5e12e42dd"),
-        _u("photo-1492144534655-ae79c964c9d7"),
+        _u("photo-1533473359331-0135ef1b58bf"),  # SUV di jalan
+        _u("photo-1545454675-3531b543be5d"),  # isi bahan bakar
+        _u("photo-1506521781263-d8422e82f27a"),  # antrean kendaraan
+        _u("photo-1584345604476-8ec5e12e42dd"),  # dashboard mobil
+        _u("photo-1492144534655-ae79c964c9d7"),  # lalu lintas kota
     ],
     "general": [
-        _u("photo-1486406146926-c627a92ad1ab"),
-        _u("photo-1611974789855-9c2a0a7236a3"),
-        _u("photo-1580519542036-c47de6196ba5"),
-        _u("photo-1578632767115-351597cf2477"),
-        _u("photo-1590283603385-17ffb3a7f29f"),
+        _u("photo-1486406146926-c627a92ad1ab"),  # gedung bisnis
+        _u("photo-1611974789855-9c2a0a7236a3"),  # grafik data
+        _u("photo-1580519542036-c47de6196ba5"),  # uang & perbankan
+        _u("photo-1578632767115-351597cf2477"),  # pusat bisnis metropolitan
+        _u("photo-1590283603385-17ffb3a7f29f"),  # analisis & keputusan
     ],
 }
 CATEGORY_ALIASES = {"currency": "macro", "rupiah": "macro", "retail_consumer": "retail", "food": "staples"}
@@ -241,8 +242,9 @@ DIRECT_FEEDS = [
 def is_valid_candidate_for_program(prog_id: str, title: str, summary: str) -> bool:
     t = (title + " " + summary).lower()
     if prog_id == "INDEKS_KERINGAT":
+        # Larang topik pasar modal murni / saham spekulasi masuk ke rubrik kebutuhan rakyat
         stock_kws = ["saham", "ihsg", "emiten", "dividen", "ipo", "bursa efek", "reksadana", "dssa", "bren", "cuan", "barito", "idx", "bei"]
-        if any(re.search(r"\b" + re.escape(w) + r"\b", t) for w in stock_kws):
+        if any(re.search(r"" + re.escape(w) + r"", t) for w in stock_kws):
             return False
     return True
 
@@ -251,6 +253,10 @@ def get_daily_program_config() -> Dict[str, Any]:
     if PROGRAM_OVERRIDE in ("INDEKS_KERINGAT", "RADAR_SENTIMEN", "ANGKA_BICARA"):
         p_id = PROGRAM_OVERRIDE
     else:
+        # Evaluasi hari kalender Indonesia (WIB = UTC+7):
+        # Senin (0) & Kamis (3) -> INDEKS_KERINGAT
+        # Selasa (1) & Jumat (4) -> RADAR_SENTIMEN
+        # Rabu (2), Sabtu (5), Minggu (6) -> ANGKA_BICARA
         weekday = get_now_wib().weekday()
         p_id = "INDEKS_KERINGAT" if weekday in (0, 3) else "RADAR_SENTIMEN" if weekday in (1, 4) else "ANGKA_BICARA"
 
@@ -258,13 +264,13 @@ def get_daily_program_config() -> Dict[str, Any]:
         return {
             "id": p_id, "name": "INDEKS KERINGAT", "subtitle": "JURNAL DAYA BELI & JAM KERJA",
             "feeds": [
-                f"{GN}/search?q=harga+beras+OR+harga+sembako+OR+minyak+goreng+OR+harga+cabai+OR+pasar+tradisional&hl=id&gl=ID&ceid=ID:id",
+                f"{GN}/search?q=harga+beras+OR+harga+sembako+OR+minyak+goreng+OR+bapanas+OR+pasar+tradisional&hl=id&gl=ID&ceid=ID:id",
                 f"{GN}/search?q=pertalite+OR+antrean+spbu+OR+lpg+3kg+OR+subsidi+bbm+OR+tarif+listrik&hl=id&gl=ID&ceid=ID:id",
                 f"{GN}/search?q=daya+beli+OR+gaji+umr+OR+phk+buruh+OR+alfamart+OR+indomaret+OR+biaya+hidup&hl=id&gl=ID&ceid=ID:id",
                 "https://www.antaranews.com/rss/ekonomi.xml",
                 "https://rss.detik.com/index.php/finance",
             ],
-            "sources": ["Badan Pusat Statistik (BPS)", "Badan Pangan Nasional (Bapanas)", "Kementerian Perdagangan RI",
+            "sources": ["Badan Pusat Statistik (BPS)", "Badan Pangan Nasional (Bapanas)", "Kementerian ESDM RI",
                         "Kepgub DKI No. 1026/2024 (UMP Rp 5.396.763)"],
         }
     if p_id == "RADAR_SENTIMEN":
@@ -280,7 +286,7 @@ def get_daily_program_config() -> Dict[str, Any]:
             "sources": ["Pantauan Percakapan Media Sosial & Forum Publik", "Portal Berita Terverifikasi Dewan Pers"],
         }
     return {
-        "id": "ANGKA_BICARA", "name": "ANGKA BICARA", "subtitle": "DATA STORYTELLING & FINANSIAL",
+        "id": "ANGKA_BICARA", "name": "ANGKA BICARA", "subtitle": "DATA STORYTELLING & GAYA HIDUP",
         "feeds": [
             f"{GN}/headlines/section/topic/BUSINESS?hl=id&gl=ID&ceid=ID:id",
             f"{GN}/search?q=ihsg+OR+saham+OR+bursa+efek+OR+ojk+OR+rupiah+tembus+OR+harga+emas&hl=id&gl=ID&ceid=ID:id",
@@ -469,9 +475,9 @@ def fetch_cover_from_article(article_url: str, dest: Path) -> Optional[str]:
 def select_news_with_cover(candidates: List[Dict[str, str]], max_try: int = 6) -> Tuple[Dict[str, str], List[str]]:
     if not candidates:
         candidates = [{
-            "title": "Harga Pangan Hari Ini: Cabai Meroket, Dapur Rakyat Tercekik",
+            "title": "Antrean Panjang di Gerai Ritel dan SPBU Saat Harga Kebutuhan Pokok Naik",
             "link": f"https://metrika.id/fallback/{get_now_wib().date()}",
-            "summary": "Lonjakan harga kebutuhan harian memicu tekanan berat pada daya beli pekerja.",
+            "summary": "Kenaikan harga kebutuhan harian memicu lonjakan belanja dan antrean di berbagai gerai.",
             "published": str(get_now_wib().date()),
         }]
     chosen: Optional[Dict[str, str]] = None
@@ -592,12 +598,16 @@ def fill_photos(category: str, seed: int, targets: List[Path], news_item: Dict[s
                 print(f"[Photo Engine] {target.name} <- pustaka lokal {src.name}")
             except Exception:
                 pass
+        slot = next((k for k, p in SLIDE_IMG_PATHS.items() if p == target), f"slide{i+1}")
+        if ok:
+            news_item.setdefault("photo_sources", {})[slot] = "Arsip Redaksi Metrika"
         if not ok:
             if rel_pool is None:
                 rel_pool = collect_related_article_photos(search_q, news_item, len(targets))
             if rel_pool:
                 shutil.copyfile(rel_pool.pop(0), target)
                 ok = True
+                news_item.setdefault("photo_sources", {})[slot] = "Dokumentasi Berita Terverifikasi"
         if not ok and (PEXELS_API_KEY or UNSPLASH_ACCESS_KEY):
             q = queries[i % len(queries)] if queries else search_q
             for u in stock_search_urls(q):
@@ -607,17 +617,22 @@ def fill_photos(category: str, seed: int, targets: List[Path], news_item: Dict[s
                 if download_image(u, target, MIN_REGISTRY_WIDTH):
                     ok = True
                     print(f"[Photo Engine] {target.name} <- stok '{q}'")
+                    news_item.setdefault("photo_sources", {})[slot] = "Unsplash / Pexels"
                     break
         if not ok and cover.exists() and target != cover:
             shutil.copyfile(cover, target)
             ok = True
+            news_item.setdefault("photo_sources", {})[slot] = news_item.get("cover_credit") or "Dokumentasi Media"
             print(f"[Photo Engine] {target.name} <- memakai ulang foto cover")
         while USE_REGISTRY_FALLBACK and registry and not ok:
             u = registry.pop(0)
             ok = download_image(u, target, MIN_REGISTRY_WIDTH)
+            if ok:
+                news_item.setdefault("photo_sources", {})[slot] = "Unsplash"
         if not ok:
             print(f"[Photo Engine] PERINGATAN: tidak ada foto relevan untuk {target.name}; placeholder dipakai.")
             make_placeholder(target)
+            news_item.setdefault("photo_sources", {})[slot] = "Grafis Metrika"
 
     for f in OUTPUT_DIR.glob("_rel_*.jpg"):
         f.unlink(missing_ok=True)
@@ -913,6 +928,7 @@ def smart_pick_photos(category: str, news_item: Dict[str, str], analysis: Dict[s
     if missing and SLIDE_IMG_PATHS["slide1"].exists():
         for k in missing:
             shutil.copyfile(SLIDE_IMG_PATHS["slide1"], SLIDE_IMG_PATHS[k])
+            news_item.setdefault("photo_sources", {})[k] = news_item.get("cover_credit") or "Dokumentasi Media"
             print(f"[Smart Photo] {k} memakai ulang foto cover (tidak ada kandidat layak).")
     return all(SLIDE_IMG_PATHS[k].exists() for k in SLOT_KEYS)
 
@@ -959,45 +975,6 @@ def check_registry_images() -> None:
             print(f"[{'OK  ' if ok else 'FAIL'}] {cat:<10} {u[:90]}")
     tmp.unlink(missing_ok=True)
     print(f"\nSelesai. {bad} URL gagal. Ganti URL yang FAIL atau isi photo_library/<kategori>/.")
-
-
-# ==============================================================================
-# 5b. KALKULATOR DETERMINISTIK BEBAN KERINGAT (OJOL vs UMR vs DPR)
-# ==============================================================================
-def extract_numeric_price(text: str) -> float:
-    """Mengekstrak angka nominal harga rupiah dari teks/hero_value."""
-    digits = re.sub(r"[^\d]", "", str(text or ""))
-    if digits:
-        try:
-            val = float(digits)
-            if val > 100_000_000:
-                return 150000.0
-            return val
-        except ValueError:
-            pass
-    return 17000.0
-
-
-def compute_indeks_keringat(price: float) -> Dict[str, str]:
-    """Menghitung perbandingan beban jam kerja keringat: Ojol vs Buruh UMR vs Anggota DPR."""
-    ojol_trip_net = 12500.0  # Laba bersih rata-rata per trip ojol
-    ojol_trips = max(1.0, round(price / ojol_trip_net, 1))
-    ojol_hours = max(0.5, round(ojol_trips * 0.75, 1))  # ~45 menit per trip di jalan
-
-    umr_daily = 5396763.0 / 22.0  # UMR Jakarta Rp 5,4 jt / 22 hari kerja
-    umr_hourly = umr_daily / 8.0
-    umr_hours = max(0.2, round(price / umr_hourly, 1))
-    umr_days = max(0.1, round(price / umr_daily, 2))
-
-    # Gaji + Tunjangan DPR RI: ~Rp 60.000.000 / bln (22 hari kerja = Rp 2,7 jt/hari = Rp 341.000/jam = Rp 5.680/menit)
-    dpr_minute = (60000000.0 / 22.0 / 8.0) / 60.0
-    dpr_minutes = max(1.0, round(price / dpr_minute, 1))
-
-    return {
-        "ojol": f"{ojol_trips:g} trip narik ({ojol_hours:g} jam di aspal)",
-        "umr": f"{umr_hours:g} jam kerja ({umr_days:g} hari kerja)",
-        "dpr": f"{dpr_minutes:g} menit kerja di ruang sidang",
-    }
 
 
 # ==============================================================================
@@ -1061,11 +1038,48 @@ def get_available_gemini_models() -> List[str]:
     return ordered or list(PREFERRED_GEMINI_MODELS)
 
 
+def extract_numeric_price(text: str) -> float:
+    """Mengekstrak angka nominal harga rupiah dari teks/hero_value."""
+    digits = re.sub(r"[^\d]", "", str(text or ""))
+    if digits:
+        try:
+            val = float(digits)
+            if val > 100_000_000:
+                return 150000.0
+            return val
+        except ValueError:
+            pass
+    return 17000.0
+
+
+def compute_indeks_keringat(price: float) -> Dict[str, str]:
+    """Menghitung perbandingan beban jam kerja keringat: Ojol vs Buruh UMR vs Anggota DPR."""
+    ojol_trip_net = 12500.0  # Laba bersih rata-rata per trip ojol
+    ojol_trips = max(1.0, round(price / ojol_trip_net, 1))
+    ojol_hours = max(0.5, round(ojol_trips * 0.75, 1))  # ~45 menit per trip
+
+    umr_daily = 5396763.0 / 22.0  # UMR Jakarta Rp 5,4 jt / 22 hari kerja
+    umr_hourly = umr_daily / 8.0
+    umr_hours = max(0.2, round(price / umr_hourly, 1))
+    umr_days = max(0.1, round(price / umr_daily, 2))
+
+    # Gaji + Tunjangan DPR RI: ~Rp 60.000.000 / bln (22 hari kerja = Rp 2,7 jt/hari = Rp 341.000/jam = Rp 5.680/menit)
+    dpr_minute = (60000000.0 / 22.0 / 8.0) / 60.0
+    dpr_minutes = max(1.0, round(price / dpr_minute, 1))
+
+    return {
+        "ojol": f"{ojol_trips:g} trip narik ({ojol_hours:g} jam di aspal)",
+        "umr": f"{umr_hours:g} jam kerja ({umr_days:g} hari kerja)",
+        "dpr": f"{dpr_minutes:g} menit kerja di ruang sidang",
+    }
+
+
 def ensure_chart_data(analysis: Dict[str, Any], prog_id: str, news_title: str) -> Dict[str, Any]:
     cd = analysis.get("chart_data")
     if isinstance(cd, dict) and cd.get("items") and isinstance(cd["items"], list) and len(cd["items"]) >= 2:
         return cd
 
+    # Fallback sintetis dinamis jika model AI melewatkan chart_data
     if prog_id == "INDEKS_KERINGAT":
         price = extract_numeric_price(analysis.get("hero_value", "17500"))
         k = compute_indeks_keringat(price)
@@ -1164,16 +1178,20 @@ PEDOMAN GAYA PENULISAN (SARKASME HUMANIS, PENEKANAN BOLD, & ANTI-AI SLOP):
    - Setiap slide WAJIB memiliki judul provokatif yang menantang akal sehat, dengan 2-4 kata inti emosional yang DIBUNGKUS tag <red>...</red> agar menyala merah di poster.
    - Slide 1 (Cover Hook): Judul menggigit yang langsung menampar inti masalah (maks 90 karakter).
    - Slide 2 (Context Hook): Pertanyaan tajam membongkar kontras kejadian di lapangan (maks 75 karakter).
-   - Slide 3 (Metric Hook): Pertanyaan audit data yang membongkar angka pengeluaran riil & jam kerja (maks 75 karakter).
+   - Slide 3 (Metric Hook): Pertanyaan audit data yang membongkar angka pengeluaran riil (maks 75 karakter).
    - Slide 4 (Strategy Hook): Tiga kontras realita lapangan yang jarang diakui birokrasi (maks 70 karakter).
    - Slide 5 (Verdict Hook): Judul vonis redaksi yang menuntut akuntabilitas pejabat (maks 60 karakter).
 5. FORMAT PARAGRAF NARATIF MENGALIR (SLIDE 2 & SLIDE 3 BUKAN POINT/BULLET LIST):
-   - Slide 2 (Konteks Fakta Lapangan): DILARANG MENJADIKANNYA LISTICLE POIN-POIN / BULLET DOT. Tuliskan dalam 2 PARAGRAF NARASI INVESTIGATIF MENGALIR (masing-masing 55-75 kata) dengan **bold penekanan**.
-   - Slide 3 (Bedah Data & Implikasi): DILARANG MENJADIKANNYA BULLET LIST. Tuliskan dalam 2 KOLOM NARASI ANALISIS (masing-masing 60-80 kata) membedah beban jam kerja ojol/UMR vs pejabat DPR.
-   - Slide 4 (Tiga Realita Lapangan): 3 kartu perspektif komparatif (Rakyat/Ojol Biasa, Manuver Elit DPR, Realita Kebijakan).
-   - Slide 5 (Vonis & Evaluasi): Vonis tajam redaksi + TIGA POIN EVALUASI LUGAS + CTA pertanyaan diskusi kritis.
+   - Slide 2 (Konteks Fakta Lapangan): DILARANG MENJADIKANNYA LISTICLE POIN-POIN / BULLET DOT. Tuliskan dalam 2 PARAGRAF NARASI INVESTIGATIF MENGALIR (masing-masing 35-55 kata) yang menguraikan kontras nyata antara pernyataan pejabat di media massa dan fakta antrean panjang serta beban biaya belanja riil masyarakat di pasar tradisional.
+   - Slide 3 (Bedah Data & Implikasi): DILARANG MENJADIKANNYA BULLET LIST. Tuliskan dalam 2 KOLOM NARASI ANALISIS (masing-masing 1 PARAGRAF UTUH MENGALIR, 35-50 kata tanpa bullet dot):
+     * Kolom 1 (slide3_col1_title & points): Paragraf beban riil yang menggerus anggaran belanja rakyat kecil / pekerja.
+     * Kolom 2 (slide3_col2_title & points): Paragraf sindiran logis atas klaim sepihak dan lambannya respons pemerintah.
+   - Slide 4 (Tiga Realita Lapangan): 3 kartu perspektif komparatif (Rakyat Biasa, Manuver Elit, Realita Kebijakan).
+   - Slide 5 (Vonis & Evaluasi): Vonis quote redaksi + TIGA POIN EVALUASI LUGAS (poin-poin hanya diperbolehkan di sini untuk kesimpulan/rekomendasi ringkas penutup) + CTA pertanyaan diskusi kritis.
 6. DATA GRAFIK KOMPARATIF ('chart_data') WAJIB DIISI! DILARANG NULL:
-   - Sediakan 3 bar komparasi jam kerja atau harga untuk Slide 3 yang menunjukkan ketimpangan nyata.
+   - Sediakan 3 bar komparasi angka horizontal untuk Slide 3 yang menunjukkan ketimpangan nyata (misal: Harga Nyata di Pasar vs Patokan Harga Resmi vs Selisih Kenaikan Beban).
+
+PERINGATAN: WAJIB MENULIS SESUAI TOPIK BERITA YANG DIBERIKAN! JANGAN MEMBAHAS SAHAM ATAU OJK BILA BERITA TENTANG SEMBAKO ATAU BBM!
 
 Format output: JSON murni tanpa markdown, persis dengan skema kunci berikut:
 {{
@@ -1181,55 +1199,55 @@ Format output: JSON murni tanpa markdown, persis dengan skema kunci berikut:
   "image_category": "retail/staples/fuel/macro/stocks/gold/automotive/general",
   "news_search_query": "kueri pencarian gambar foto jurnalistik",
   "photo_queries": ["kueri foto 1", "kueri foto 2", "kueri foto 3", "kueri foto 4"],
-  "hook": "Harga Pangan Meroket, <red>Dapur Rakyat Tercekik</red>: Berapa Jam Ojol Narik untuk 1 Kg Cabai?",
-  "hero_value": "Rp 126.400/kg",
-  "hero_label": "harga riil cabai merah keriting di pasar tradisional yang menguras upah harian buruh",
+  "hook": "Klaim Pejabat Surplus, <red>Dapur Rakyat Tetap Tercekik</red>: Harga Beras Naik, Siapa yang Untung?",
+  "hero_value": "Rp 17.500/kg",
+  "hero_label": "harga riil beras medium di pasar tradisional yang terus menguras gaji pekerja",
   "slide2_eyebrow": "01 / DOKUMENTASI FAKTA",
-  "slide2_hook": "Katanya Inflasi Aman, <red>Kenapa Harga Cabai</red> Tembus Tiga Digit?",
+  "slide2_hook": "Katanya Stok Aman, <red>Kenapa Antrean Beras</red> Mengular dari Subuh?",
   "slide2_paragraphs": [
-    "Di layar kaca, kementerian rutin membanggakan **stabilitas angka inflasi pangan nasional** dan mengklaim operasi pasar terus digencarkan secara masif ke daerah-daerah. Namun, kenyataan di pasar tradisional justru menampar akal sehat konsumen: **harga cabai merah keriting melonjak liar hingga menembus Rp 126.400 per kilogram**, membuat para pedagang eceran kehilangan pembeli dan warung makan terpaksa memangkas takaran porsi sambal mereka demi bertahan hidup.",
-    "Kenaikan harga bahan bumbu dapur ini langsung **menggerus lebih dari separuh upah harian pekerja lepas**, sementara pasokan pasaran justru tertahan di tangan tengkulak besar. Setiap kali harga pangan pokok melonjak, beban pengorbanan selalu **ditagihkan tunai kepada rakyat berpenghasilan pas-pasan** yang tidak memiliki ruang tabungan darurat sama sekali."
+    "Kementerian terkait berulang kali menegaskan cadangan beras di gudang pemerintah surplus dan operasi pasar terus digencarkan, namun kenyataan di warung dan pasar tradisional justru memperlihatkan antrean warga yang mengular sejak subuh demi mendapatkan beras medium dengan harga terjangkau.",
+    "Gelontoran kuota impor ratusan ribu ton terbukti belum mampu menjinakkan lonjakan harga eceran di tingkat pedagang, sementara daya beli pekerja berpenghasilan pas-pasan kian terhimpit karena separuh upah bulanan habis terserap hanya untuk urusan pangan pokok sehari-hari."
   ],
-  "slide2_takeaway": "Inflasi di atas kertas statistik tidak pernah mencerminkan kepedihan nyata di depan timbangan pasar.",
+  "slide2_takeaway": "Selama distribusi pangan tersumbat di tingkat perantara, penurunan harga hanya akan terjadi di atas kertas rilis pers.",
   "slide3_eyebrow": "02 / BEDAH DATA RISET",
-  "slide3_hook": "Berapa Jam Keringat yang <red>Harus Ditukar</red> demi 1 Kg Cabai?",
-  "slide3_metric_value": "Rp 126.400/kg",
-  "slide3_metric_label": "harga riil per kilogram cabai merah keriting di tingkat pedagang eceran",
-  "slide3_col1_title": "Keringat Driver Ojol & Buruh UMR",
+  "slide3_hook": "Berapa Besar <red>Selisih Beban Belanja</red> yang Harus Ditanggung Warga?",
+  "slide3_metric_value": "Rp 17.500/kg",
+  "slide3_metric_label": "harga riil per kilogram beras medium di tingkat pedagang eceran",
+  "slide3_col1_title": "Beban Anggaran Rumah Tangga",
   "slide3_col1_points": [
-    "Untuk membeli sekilogram cabai seharga **Rp 126.400**, seorang driver ojek online harus **menuntaskan 10 trip penuh atau setara 7,6 jam narik di jalanan** penuh asap dan debu aspal. Sementara bagi **buruh berupah UMR Jakarta**, pengeluaran ini setara dengan **membakar 4,1 jam kerja kantor penuh** hanya untuk membeli satu kantong bumbu masak harian keluarga."
+    "**Pengeluaran Dapur Melonjak:** Biaya makan harian mengambil porsi lebih dari separuh pendapatan bulanan keluarga pekerja, memaksa pemangkasan alokasi tabungan dan kebutuhan gizi anak demi mencukupi kebutuhan pokok sehari-hari."
   ],
-  "slide3_col2_title": "Ketimpangan Gaji Elit & Pejabat DPR",
+  "slide3_col2_title": "Klaim Sepihak Regulator",
   "slide3_col2_points": [
-    "Bandingkan dengan **seorang anggota DPR RI** yang menerima gaji serta aneka tunjangan resmi **melebihi Rp 60 juta per bulan dari APBN**. Pejabat hanya membutuhkan waktu **kurang dari 22 menit kerja santai di ruang sidang ber-AC** untuk menebus komoditas yang sama, membuktikan betapa jurang empati kebijakan pangan kian terputus dari realitas hidup wong cilik."
+    "**Keterlambatan Intervensi:** Otoritas cenderung lamban menindak distributor besar yang menahan pasokan, sementara operasi pasar musiman hanya menyentuh sebagian kecil titik penjualan tanpa menyelesaikan kendala distribusi utama."
   ],
-  "slide3_alert_text": "Ketika pejabat enteng meminta rakyat berhemat, mereka lupa bahwa satu kantong cabai setara seharian keringat buruh kasar.",
+  "slide3_alert_text": "Biaya dari lambannya pembenahan distribusi pangan pada akhirnya selalu dibayar tunai oleh dompet konsumen paling bawah.",
   "chart_data": {{
-    "title": "BEBAN WAKTU KERJA: 1 KG CABAI",
+    "title": "HARGA PASAR VS PATOKAN RESMI",
     "items": [
-      {{"label": "Driver Ojol (Jam di Aspal)", "val_str": "7.6 Jam (10 Trip)", "val": 7.6}},
-      {{"label": "Buruh UMR (Jam Kerja Kantor)", "val_str": "4.1 Jam Kerja", "val": 4.1}},
-      {{"label": "Anggota DPR (Menit Kerja)", "val_str": "22 Menit", "val": 0.37}}
+      {{"label": "Harga Nyata di Pasar", "val_str": "Rp 17.500", "val": 17.5}},
+      {{"label": "Patokan Harga Regulasi", "val_str": "Rp 12.500", "val": 12.5}},
+      {{"label": "Kenaikan Beban Belanja", "val_str": "+40%", "val": 40.0}}
     ]
   }},
   "slide4_eyebrow": "03 / SKENARIO STRATEGIS",
   "slide4_hook": "Tiga Realita Lapangan: <red>Himbauan Berhemat</red> di Tengah Harga yang Naik",
   "slide4_scenarios": [
-    {{"tag": "KERINGAT RAKYAT & OJOL", "text": "**Narik Tanpa Sisa Tabungan:** Driver ojol dan pekerja harian tidak punya pilihan selain **memangkas jatah gizi keluarga**, karena separuh pendapatan kotor habis tersedot kenaikan harga pangan dan bensin."}},
-    {{"tag": "FASILITAS ELIT BIROKRASI", "text": "**Tunjangan Tanpa Beban:** Pejabat yang mengimbau hidup hemat **tidak pernah merasakan antre bahan pokok subuh hari**, karena seluruh fasilitas dapur dan rumah tangga ditanggung penuh anggaran negara."}},
-    {{"tag": "REALITA KEBIJAKAN DISTRIBUSI", "text": "**Operasi Pasar yang Mandul:** Penertiban jalur logistik jarang menyentuh **mafia dan distributor perantara besar** yang sengaja menimbun pasokan saat harga pasar mulai bergejolak liar."}}
+    {{"tag": "BEBAN RAKYAT BIASA", "text": "**Keluarga Berpenghasilan Pas-pasan:** Konsumen di tingkat bawah tidak memiliki pilihan selain mengurangi porsi konsumsi, sementara kenaikan pendapatan tahunan tidak sebanding dengan laju inflasi bahan pangan."}},
+    {{"tag": "MANUVER BIROKRASI & ELIT", "text": "**Seremoni Operasi Pasar:** Penyaluran komoditas murah sering kali difokuskan pada kegiatan seremonial sesaat, padahal volume yang dilepas ke publik belum mampu mengimbangi kebutuhan pasar sesungguhnya."}},
+    {{"tag": "REALITA KEBIJAKAN", "text": "**Penegakan Aturan yang Mandul:** Himbauan kepatuhan harga eceran tertinggi jarang dibarengi penertiban berkala terhadap rantai pasok besar yang menguasai jalur distribusi utama."}}
   ],
   "slide4_takeaway": "Himbauan hidup hemat dari pejabat yang tidak pernah merasakan antre bahan pokok terasa janggal bagi masyarakat yang setiap hari memutar otak mengatur uang belanja.",
   "slide5_eyebrow": "04 / KESIMPULAN RISET",
   "slide5_hook": "Vonis Evaluasi: <red>Bukan Sekadar Cuaca</red>, Benahi Jalur Distribusi!",
   "verdict": "Klaim keberhasilan pengendalian inflasi kehilangan artinya jika harga kebutuhan pokok di warung terdekat tetap tidak terjangkau oleh keluarga pekerja berpenghasilan pas-pasan.",
   "slide5_highlights": [
-    "Kementerian perdagangan dan otoritas pangan **wajib menindak tegas spekulan rantai pasok besar**, bukan sekadar menggelar operasi pasar kosmetik di depan sorotan kamera media.",
-    "Pemerintah harus **menjamin transparansi data distribusi komoditas pangan harian** dari hulu hingga hilir secara terbuka kepada publik.",
-    "Perlindungan daya beli rakyat kecil harus diukur dari **keterjangkauan harga riil di pasar becek**, bukan angka inflasi di ruang rapat pejabat."
+    "Penyelesaian lonjakan harga bahan pokok membutuhkan pembongkaran hambatan distribusi, bukan sekadar imbauan normatif di media massa.",
+    "Kementerian terkait wajib membuka data realisasi pasokan dan jalur distribusi pangan secara berkala kepada publik.",
+    "Perlindungan daya beli konsumen harus diukur dari stabilitas harga nyata di pasar tradisional, bukan angka statistik di ruang rapat."
   ],
-  "cta": "Menurut Anda, adilkah jika pejabat bergaji puluhan juta meminta rakyat berhemat saat harga pangan meroket? Sampaikan pandangan Anda di kolom komentar.",
-  "sources": ["Badan Pangan Nasional (Bapanas)", "Badan Pusat Statistik (BPS)", "Kementerian Perdagangan RI", "Kepgub DKI Jakarta UMP 2024"]
+  "cta": "Menurut Anda, apakah kenaikan harga bahan pokok saat ini lebih disebabkan kendala pasokan alamiah atau kelemahan pemerintah dalam menertibkan jalur distribusi? Sampaikan pandangan Anda di kolom komentar.",
+  "sources": ["Badan Pangan Nasional (Bapanas)", "Badan Pusat Statistik (BPS)", "Kementerian Perdagangan RI"]
 }}
 """.strip()
 
@@ -1330,51 +1348,47 @@ def build_metrika_content(
             "eyebrow": a.get("slide2_eyebrow", "01 / DOKUMENTASI FAKTA"),
             "hook": a.get("slide2_hook", "Kenapa Isu Ini Tiba-tiba Meledak di Lapangan?"),
             "paragraphs": a.get("slide2_paragraphs") or a.get("slide2_points") or [
-                "Kementerian terkait berulang kali menegaskan cadangan pangan nasional dalam kondisi aman dan operasi pasar digencarkan secara masif. Namun, pemandangan di warung dan pasar tradisional justru memperlihatkan antrean warga demi mendapatkan kebutuhan pokok dengan harga terjangkau.",
-                "Lonjakan harga eceran langsung menggerus lebih dari separuh upah harian pekerja lepas, sementara pasokan riil tertahan di tingkat perantara. Kenaikan harga pokok selalu ditagihkan tunai kepada rakyat yang tidak memiliki ruang tabungan darurat."
+                "Kementerian terkait berulang kali menegaskan cadangan beras di gudang pemerintah surplus dan operasi pasar terus digencarkan, namun kenyataan di warung dan pasar tradisional justru memperlihatkan antrean warga yang mengular sejak subuh demi mendapatkan beras medium dengan harga terjangkau.",
+                "Gelontoran kuota impor ratusan ribu ton terbukti belum mampu menjinakkan lonjakan harga eceran di tingkat pedagang, sementara daya beli pekerja berpenghasilan pas-pasan kian terhimpit karena separuh upah bulanan habis terserap hanya untuk urusan pangan pokok sehari-hari."
             ],
-            "takeaway": a.get("slide2_takeaway", "Selama distribusi pangan tersumbat di tingkat perantara, penurunan harga hanya akan terjadi di atas kertas rilis pers."),
+            "takeaway": a.get("slide2_takeaway", "Isu ini bukan sekadar berita harian, melainkan sinyal tekanan pada dompet publik."),
         },
         "slide_metric": {
             "eyebrow": a.get("slide3_eyebrow", "02 / BEDAH DATA RISET"),
             "hook": a.get("slide3_hook", "Berapa Besar Angka yang Selama Ini Tak Terlihat?"),
             "metric_value": a.get("slide3_metric_value", a.get("hero_value", "")),
             "metric_label": a.get("slide3_metric_label", "estimasi angka kunci dari data resmi"),
-            "col1_title": a.get("slide3_col1_title", "Keringat Driver Ojol & Buruh UMR"),
-            "col1_points": a.get("slide3_col1_points") or [
-                "Untuk menebus komoditas pokok ini, seorang driver ojol harus menuntaskan belasan trip penuh di jalanan, sementara bagi buruh berupah UMR, lonjakan ini langsung membakar sebagian besar jam kerja harian."
-            ],
-            "col2_title": a.get("slide3_col2_title", "Ketimpangan Gaji Elit & Pejabat DPR"),
-            "col2_points": a.get("slide3_col2_points") or [
-                "Bandingkan dengan pejabat negara yang menerima tunjangan puluhan juta dari APBN, yang hanya membutuhkan waktu beberapa menit kerja santai untuk menebus kebutuhan yang sama tanpa pernah merasakan beban antrean."
-            ],
+            "col1_title": a.get("slide3_col1_title", "Beban Konsumen"),
+            "col1_points": a.get("slide3_col1_points") or ["Pengeluaran harian naik.", "Daya beli tertekan."],
+            "col2_title": a.get("slide3_col2_title", "Ilusi Pengawasan Regulator"),
+            "col2_points": a.get("slide3_col2_points") or ["Margin usaha menipis.", "Penegakan hukum reaktif."],
             "alert_text": a.get("slide3_alert_text", "Ketika pengawasan berjalan lambat, biaya kelalaian ditagihkan ke kantong rakyat."),
         },
         "slide_strategy": {
             "eyebrow": a.get("slide4_eyebrow", "03 / SKENARIO STRATEGIS"),
-            "hook": a.get("slide4_hook", "Tiga Realita Lapangan: Himbauan Berhemat di Tengah Harga yang Naik"),
+            "hook": a.get("slide4_hook", "Tiga Realita Lapangan yang Tak Pernah Diungkap"),
             "scenarios": a.get("slide4_scenarios") or [
-                {"tag": "KERINGAT RAKYAT & OJOL", "text": "**Narik Tanpa Sisa Tabungan:** Driver ojol dan pekerja harian tidak punya pilihan selain memangkas jatah gizi keluarga karena pendapatan habis tersedot kenaikan harga pangan."},
-                {"tag": "FASILITAS ELIT BIROKRASI", "text": "**Tunjangan Tanpa Beban:** Pejabat yang mengimbau hidup hemat tidak pernah merasakan antre bahan pokok karena seluruh fasilitas ditanggung anggaran negara."},
-                {"tag": "REALITA KEBIJAKAN DISTRIBUSI", "text": "**Operasi Pasar yang Mandul:** Penertiban jalur logistik jarang menyentuh distributor perantara besar yang menguasai jalur distribusi utama."},
+                {"tag": "REALITA KORBAN RITEL", "text": "**Bantalan Kerugian:** Konsumen dan ritel selalu menanggung beban akhir."},
+                {"tag": "MANUVER TAIPAN", "text": "**Siasat Kosmetik:** Janji perbaikan sering kali hanya meredakan sentimen sesaat."},
+                {"tag": "ILUSI PENGAWASAN", "text": "**Formalitas Sanksi:** Sanksi administratif jarang memberikan efek jera nyata."},
             ],
-            "takeaway": a.get("slide4_takeaway", "Himbauan hidup hemat dari pejabat yang tidak pernah merasakan antre bahan pokok terasa janggal bagi masyarakat yang setiap hari memutar otak mengatur uang belanja."),
+            "takeaway": a.get("slide4_takeaway", "Di pasar yang asimetris, optimisme tanpa data adalah kerugian yang tertunda."),
         },
         "slide5_eyebrow": a.get("slide5_eyebrow", "04 / KESIMPULAN RISET"),
-        "slide5_hook": a.get("slide5_hook", "Vonis Evaluasi: Bukan Sekadar Cuaca, Benahi Jalur Distribusi!"),
-        "verdict": a.get("verdict", "Klaim keberhasilan pengendalian inflasi kehilangan artinya jika harga kebutuhan pokok di warung terdekat tetap tidak terjangkau oleh keluarga pekerja berpenghasilan pas-pasan."),
+        "slide5_hook": a.get("slide5_hook", "Verdict Riset & <red>Ruang Pengadilan Publik</red>"),
+        "verdict": a.get("verdict", "Data berbicara lebih jujur daripada opini; publik berhak atas transparansi yang nyata."),
         "slide5_highlights": a.get("slide5_highlights") or [
-            "Penyelesaian lonjakan harga bahan pokok membutuhkan pembongkaran hambatan distribusi, bukan sekadar imbauan normatif di media massa.",
-            "Kementerian terkait wajib membuka data realisasi pasokan dan jalur distribusi pangan secara berkala kepada publik.",
-            "Perlindungan daya beli konsumen harus diukur dari stabilitas harga nyata di pasar tradisional, bukan angka statistik di ruang rapat.",
+            "Dampak terbesar selalu jatuh pada kelompok dengan ruang anggaran paling sempit.",
+            "Respons kebijakan perlu diukur dengan data audit, bukan sekadar rilis pers.",
+            "Transparansi penuh adalah syarat mutlak agar keadilan pasar ditegakkan.",
         ],
-        "cta": a.get("cta", "Menurut Anda, adilkah jika pejabat bergaji puluhan juta meminta rakyat berhemat saat harga pangan meroket? Sampaikan pandangan Anda di kolom komentar."),
+        "cta": a.get("cta", "Menurutmu, siapa yang paling bertanggung jawab dan apa solusi paling adil? Tulis komentarmu."),
         "sources": a.get("sources") or prog_cfg["sources"],
     }
 
 
 # ==============================================================================
-# 8. DISTRIBUSI TELEGRAM (FORMAT CAPTION HTML EDITORIAL LENGKAP & KREDIT FOTO)
+# 8. DISTRIBUSI TELEGRAM
 # ==============================================================================
 def send_outputs_to_telegram(carousel_paths: List[Path], content: Dict[str, Any], news_item: Dict[str, str]) -> None:
     if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
@@ -1382,7 +1396,16 @@ def send_outputs_to_telegram(carousel_paths: List[Path], content: Dict[str, Any]
         return
 
     base_url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}"
-    clean_h = strip_emoji(re.sub(r"</?red>", "", content["hook"]))
+    def format_tg_html(raw_t: str) -> str:
+        if not raw_t:
+            return ""
+        st = str(raw_t).strip()
+        st = re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", st)
+        st = re.sub(r"__(.+?)__", r"<b>\1</b>", st)
+        st = st.replace("**", "").replace("*", "")
+        return st
+
+    clean_h = format_tg_html(strip_emoji(re.sub(r"</?red>", "", content["hook"])))
     credit = content.get("hero_image_credit")
 
     # Kumpulkan seluruh sumber foto
@@ -1407,10 +1430,10 @@ def send_outputs_to_telegram(carousel_paths: List[Path], content: Dict[str, Any]
             f"— <b>Anggota DPR:</b> {keringat.get('dpr', '-')}"
         )
 
-    hero_val = content['hero']['value']
-    hero_lbl = content['hero']['label']
-    verdict = content['verdict']
-    cta = content['cta']
+    hero_val = format_tg_html(content['hero']['value'])
+    hero_lbl = format_tg_html(content['hero']['label'])
+    verdict = format_tg_html(content['verdict'])
+    cta = format_tg_html(content['cta'])
     sources_str = ", ".join(content.get("sources", []))
     news_link = news_item.get("real_link") or news_item["link"]
     prog_label = content.get("program", "METRIKA").replace("_", " ")
@@ -1485,7 +1508,7 @@ def main() -> None:
     (OUTPUT_DIR / "latest_analysis.json").write_text(
         json.dumps({**content, "_image_category": category}, indent=2, ensure_ascii=False), encoding="utf-8")
 
-    # 5. Render Playwright / WeasyPrint
+    # 5. Render Playwright
     print("[Render] Memulai render 5 slide carousel 1080x1350...")
     carousel_files = render_carousel_slides(content, CAROUSEL_DIR)
     print(f"[Render] Sukses merender {len(carousel_files)} slide.")
