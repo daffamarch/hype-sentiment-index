@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 metrika_render.py  --  Modul render grafis METRIKA Kelas Agensi (Jurnalisme Data & Riset Finansial).
 
@@ -48,40 +46,42 @@ PROGRAMS_THEME = {
     "INDEKS_KERINGAT": {
         "label": "INDEKS KERINGAT",
         "tag": "KALKULATOR DAYA BELI & JAM KERJA",
+        "badge_icon": "",
     },
     "RADAR_SENTIMEN": {
         "label": "RADAR SENTIMEN",
         "tag": "PETA POLARISASI OPINI PUBLIK",
+        "badge_icon": "",
     },
     "ANGKA_BICARA": {
         "label": "ANGKA BICARA",
         "tag": "DATA STORYTELLING & FINANSIAL",
+        "badge_icon": "",
     },
 }
 
 
-def strip_emoji(text: str) -> str:
-    """Menghapus semua simbol emoji/emotikon unicode dari teks."""
-    emoji_pattern = re.compile(
-        "["
-        "\U0001F600-\U0001F64F"  # emoticons
-        "\U0001F300-\U0001F5FF"  # symbols & pictographs
-        "\U0001F680-\U0001F6FF"  # transport & map
-        "\U0001F1E0-\U0001F1FF"  # flags
-        "\U00002702-\U000027B0"
-        "\U000024C2-\U0001F251"
-        "\U0001F900-\U0001F9FF"  # supplemental symbols
-        "\U0001FA00-\U0001FA6F"
-        "\U0001FA70-\U0001FAFF"
-        "\U00002600-\U000026FF"  # misc symbols
-        "]+",
-        flags=re.UNICODE,
-    )
-    return emoji_pattern.sub("", text).strip()
 
+EMOJI_RE = re.compile(
+    r'['
+    r'😀-🙏'
+    r'🌀-🗿'
+    r'🚀-🛿'
+    r'🇠-🇿'
+    r'✂-➰'
+    r'Ⓜ-🉑'
+    r'🤀-🧿'
+    r'🩰-🫿'
+    r']+',
+    flags=re.UNICODE
+)
+
+def strip_emoji(text: str) -> str:
+    if not isinstance(text, str):
+        return text
+    return re.sub(r'\s+', ' ', EMOJI_RE.sub('', text)).strip()
 
 def strip_emoji_deep(obj: Any) -> Any:
-    """Membersihkan emoji secara rekursif dari dict/list/string."""
     if isinstance(obj, str):
         return strip_emoji(obj)
     if isinstance(obj, list):
@@ -90,10 +90,9 @@ def strip_emoji_deep(obj: Any) -> Any:
         return {k: strip_emoji_deep(v) for k, v in obj.items()}
     return obj
 
-
 def format_hook_html(hook_text: str) -> str:
     """Format hook editorial: teks hitam espresso tebal dengan kata kunci MERAH CRIMSON."""
-    clean_text = strip_emoji(html.escape(hook_text.strip()))
+    clean_text = html.escape(hook_text.strip())
     clean_text = clean_text.replace("&lt;red&gt;", "<red>").replace("&lt;/red&gt;", "</red>")
     clean_text = clean_text.replace("&lt;highlight&gt;", "<red>").replace("&lt;/highlight&gt;", "</red>")
 
@@ -137,9 +136,41 @@ def format_hook_html(hook_text: str) -> str:
 
 
 def format_point_body_html(point_text: str) -> str:
-    """Mengonversi markdown bold **teks** menjadi <b>teks</b> untuk point body."""
-    escaped = strip_emoji(html.escape(point_text.strip()))
-    return re.sub(r"\*\*(.*?)\*\*", r'<b>\1</b>', escaped)
+    """Mengonversi markdown bold **teks** menjadi <b>teks</b> dan membersihkan semua bintang."""
+    if not point_text:
+        return ""
+    text_str = str(point_text).strip()
+    text_str = html.unescape(text_str)
+    escaped = html.escape(text_str)
+    escaped = re.sub(r"\*\*(.+?)\*\*", r'<b>\1</b>', escaped)
+    escaped = re.sub(r"__(.+?)__", r'<b>\1</b>', escaped)
+    escaped = escaped.replace("**", "").replace("*", "")
+    return escaped
+
+
+def format_photo_credit_text(credit_val: Optional[str], default_credit: str = "") -> str:
+    """Format label sumber foto editorial tanpa emotikon."""
+    val = (credit_val or default_credit or "").strip()
+    if not val:
+        return "DOKUMENTASI MEDIA"
+    val = re.sub(r"^https?://", "", val, flags=re.I)
+    val = re.sub(r"^www\.", "", val, flags=re.I)
+    val = val.split("/")[0].strip()
+    aliases = {
+        "cover": default_credit or "DOKUMENTASI MEDIA",
+        "artikel": default_credit or "DOKUMENTASI BERITA",
+        "web": default_credit or "DOKUMENTASI PERS",
+        "stok": "UNSPLASH / PEXELS",
+        "lokal": "ARSIP REDAKSI METRIKA",
+        "unsplash": "UNSPLASH",
+        "pexels": "PEXELS",
+    }
+    low = val.lower()
+    if low in aliases:
+        val = aliases[low]
+    if not val or val.lower() in ("cover", "artikel", "web", "stok", "lokal"):
+        val = default_credit or "DOKUMENTASI MEDIA"
+    return val.upper()
 
 
 def get_image_data_uri(img_path: Optional[str | Path]) -> Optional[str]:
@@ -279,7 +310,7 @@ body {{
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  padding: 8px 52px 30px 52px;
+  padding: 20px 52px 34px 52px;
   box-sizing: border-box;
 }}
 
@@ -287,8 +318,7 @@ body {{
   flex: 1;
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
-  padding-bottom: 8px;
+  gap: 24px;
 }}
 
 /* HEADER HOOK PENAHAN SCROLL */
@@ -444,16 +474,16 @@ body {{
   border: 1.5px solid var(--border);
   border-left: 5px solid var(--brown-accent);
   border-radius: 18px;
-  padding: 26px 30px;
+  padding: 24px 28px;
   display: flex;
   flex-direction: column;
   gap: 14px;
   box-shadow: 0 4px 16px rgba(43, 26, 18, 0.04);
 }}
 .slide2-narrative-header {{
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 900;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--brown-accent);
   padding-bottom: 8px;
@@ -465,9 +495,9 @@ body {{
   gap: 12px;
 }}
 .slide2-narrative-paragraph {{
-  font-size: 16.5px;
+  font-size: 16px;
   font-weight: 500;
-  line-height: 1.62;
+  line-height: 1.6;
   color: var(--text-main);
   text-align: left;
 }}
@@ -479,8 +509,8 @@ body {{
   background: var(--brown-light);
   border: 1.5px solid var(--border);
   border-radius: 14px;
-  padding: 18px 24px;
-  font-size: 15.5px;
+  padding: 14px 20px;
+  font-size: 14px;
   font-weight: 700;
   color: var(--brown-dark);
   display: flex;
@@ -489,14 +519,14 @@ body {{
   flex-shrink: 0;
 }}
 
-/* SLIDE 3: BEDAH DATA (PADAT PENUH, INTEGRASI FOTO & GRAFIK) */
+/* SLIDE 3: BEDAH DATA (PADAT PENUH) */
 .slide3-split-metric-card {{
   background: #FFFFFF;
   border: 1.5px solid var(--border);
   border-radius: 20px;
   overflow: hidden;
   display: flex;
-  height: 300px;
+  height: 360px;
   box-shadow: 0 6px 20px rgba(43, 26, 18, 0.05);
   flex-shrink: 0;
 }}
@@ -516,7 +546,7 @@ body {{
 }}
 .slide3-metric-pane {{
   flex: 1;
-  padding: 26px 30px;
+  padding: 24px 28px;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -528,13 +558,13 @@ body {{
   font-size: 60px;
   font-weight: 900;
   color: var(--brown-accent);
-  line-height: 1.05;
+  line-height: 1.1;
   margin-bottom: 8px;
 }}
 .slide3-metric-lbl {{
-  font-size: 18px;
+  font-size: 17px;
   font-weight: 700;
-  line-height: 1.4;
+  line-height: 1.35;
   color: var(--text-main);
 }}
 .slide3-dual-columns {{
@@ -546,29 +576,32 @@ body {{
   background: #FFFFFF;
   border: 1.5px solid var(--border);
   border-radius: 18px;
-  padding: 24px 26px;
+  padding: 28px 30px;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  justify-content: space-between;
+  min-height: 340px;
+  gap: 16px;
   box-shadow: 0 4px 16px rgba(43, 26, 18, 0.04);
 }}
 .slide3-column-header {{
-  font-size: 13.5px;
+  font-size: 13px;
   font-weight: 900;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--brown-accent);
   padding-bottom: 10px;
   border-bottom: 1.5px solid var(--line);
+  margin-bottom: 14px;
 }}
 .slide3-points-list {{
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 14px;
 }}
 .slide3-paragraph-text {{
-  font-size: 16.5px;
-  line-height: 1.62;
+  font-size: 15px;
+  line-height: 1.55;
   color: var(--text-main);
   text-align: left;
 }}
@@ -577,10 +610,10 @@ body {{
   color: var(--brown-dark);
 }}
 .slide3-column-footer {{
-  margin-top: 4px;
+  margin-top: 14px;
   padding-top: 10px;
-  border-top: 1.5px solid var(--line);
-  font-size: 11.5px;
+  border-top: 1px solid var(--line);
+  font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -588,12 +621,46 @@ body {{
   display: flex;
   justify-content: space-between;
 }}
+
+b, strong {{
+  font-weight: 900 !important;
+  color: var(--brown-dark) !important;
+}}
+
+.slide3-keringat-box {{
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1.5px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}}
+.slide3-keringat-row {{
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+}}
+.slide3-keringat-row span {{
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}}
+.slide3-keringat-row b {{
+  font-family: 'Outfit', sans-serif;
+  font-size: 13.5px;
+  font-weight: 800;
+  color: var(--brown-accent) !important;
+}}
+
 .slide3-alert-banner {{
   background: #FEF2F2;
   border: 1.5px solid rgba(185, 28, 28, 0.3);
   border-radius: 14px;
-  padding: 18px 24px;
-  font-size: 15.5px;
+  padding: 14px 20px;
+  font-size: 14px;
   font-weight: 700;
   color: var(--red);
   display: flex;
@@ -645,30 +712,30 @@ body {{
   border: 1.5px solid var(--border);
   border-left: 5px solid var(--brown-accent);
   border-radius: 16px;
-  padding: 20px 24px;
+  padding: 18px 22px;
   display: flex;
   flex-direction: column;
   gap: 6px;
   box-shadow: 0 4px 12px rgba(43, 26, 18, 0.03);
 }}
 .slide4-scenario-tag {{
-  font-size: 12.5px;
+  font-size: 12px;
   font-weight: 900;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--brown-accent);
 }}
 .slide4-scenario-body {{
-  font-size: 15.5px;
-  line-height: 1.52;
+  font-size: 15px;
+  line-height: 1.48;
   color: var(--text-main);
 }}
 .slide4-takeaway-bar {{
   background: var(--brown-light);
   border: 1.5px solid var(--border);
   border-radius: 14px;
-  padding: 18px 24px;
-  font-size: 15.5px;
+  padding: 14px 20px;
+  font-size: 14px;
   font-weight: 700;
   color: var(--brown-dark);
   display: flex;
@@ -677,7 +744,7 @@ body {{
   flex-shrink: 0;
 }}
 
-/* SLIDE 5: VERDICT REDAKSI & DISKUSI (PADAT PENUH, TANPA RUANG KOSONG) */
+/* SLIDE 5: VERDICT REDAKSI & DISKUSI (PADAT PENUH DENGAN HIGHLIGHTS BOX) */
 .slide5-verdict-banner {{
   width: 100%;
   height: 480px;
@@ -699,13 +766,13 @@ body {{
   position: absolute;
   inset: 0;
   background: linear-gradient(to top, rgba(32, 20, 14, 0.96) 0%, rgba(43, 26, 18, 0.75) 55%, rgba(43, 26, 18, 0.40) 100%);
-  padding: 40px 44px;
+  padding: 36px 40px;
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
 }}
 .slide5-verdict-tag {{
-  font-size: 13.5px;
+  font-size: 13px;
   font-weight: 900;
   letter-spacing: 0.14em;
   text-transform: uppercase;
@@ -718,39 +785,69 @@ body {{
 .slide5-verdict-quote {{
   font-size: 28px;
   font-weight: 800;
-  line-height: 1.45;
+  line-height: 1.42;
   color: #FAF6F0;
+}}
+.slide5-verdict-quote b, .slide5-verdict-quote strong {{
+  color: #FFFFFF !important;
+  font-weight: 900 !important;
+  border-bottom: 2px solid var(--brown-accent);
+}}
+
+.photo-credit-badge {{
+  position: absolute;
+  top: 18px;
+  right: 20px;
+  background: rgba(27, 17, 12, 0.88);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(231, 219, 207, 0.35);
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #FAF6F0;
+  display: inline-flex;
+  align-items: center;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+  z-index: 10;
+  max-width: 320px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }}
 
 .slide5-highlights-card {{
   background: #FFFFFF;
   border: 1.5px solid var(--border);
   border-radius: 18px;
-  padding: 24px 28px;
+  padding: 20px 24px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
   box-shadow: 0 4px 12px rgba(43, 26, 18, 0.03);
 }}
 .slide5-highlight-title {{
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 900;
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--brown-accent);
-  padding-bottom: 10px;
-  border-bottom: 1.5px solid var(--line);
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--line);
 }}
 .slide5-highlight-item {{
   display: flex;
   align-items: flex-start;
-  gap: 12px;
-  font-size: 16px;
+  gap: 10px;
+  font-size: 15px;
   font-weight: 600;
   color: var(--text-main);
-  line-height: 1.48;
+  line-height: 1.4;
 }}
-.slide5-highlight-bullet {{
+.slide5-highlight-check {{
   color: var(--brown-accent);
   font-weight: 900;
 }}
@@ -759,7 +856,7 @@ body {{
   background: #FFFFFF;
   border: 1.5px solid var(--border);
   border-radius: 18px;
-  padding: 22px 28px;
+  padding: 20px 24px;
   display: flex;
   align-items: center;
   gap: 18px;
@@ -767,8 +864,8 @@ body {{
   flex-shrink: 0;
 }}
 .cta-badge-icon {{
-  width: 54px;
-  height: 54px;
+  width: 50px;
+  height: 50px;
   border-radius: 50%;
   background: var(--brown-accent);
   color: #FFFFFF;
@@ -781,9 +878,9 @@ body {{
   flex-shrink: 0;
 }}
 .cta-query-text {{
-  font-size: 17.5px;
+  font-size: 17px;
   font-weight: 700;
-  line-height: 1.42;
+  line-height: 1.38;
   color: var(--brown-dark);
 }}
 
@@ -791,16 +888,16 @@ body {{
   background: var(--brown-light);
   border: 1px solid var(--border);
   border-radius: 14px;
-  padding: 18px 24px;
+  padding: 14px 20px;
   flex-shrink: 0;
 }}
 .sources-title-row {{
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--text-muted);
-  margin-bottom: 10px;
+  margin-bottom: 8px;
 }}
 .sources-chip-grid {{
   display: flex;
@@ -811,8 +908,8 @@ body {{
   background: #FFFFFF;
   border: 1px solid var(--border);
   border-radius: 6px;
-  padding: 7px 16px;
-  font-size: 12.5px;
+  padding: 5px 14px;
+  font-size: 12px;
   font-weight: 700;
   color: var(--brown-dark);
 }}
@@ -820,12 +917,12 @@ body {{
 /* Global Footer & Progress Bar (Tinggi ~60px) */
 .slide-bottom-bar {{
   flex-shrink: 0;
-  margin-top: 10px;
+  margin-top: 14px;
 }}
 .carousel-progress-bar {{
   display: flex;
   gap: 8px;
-  margin-bottom: 10px;
+  margin-bottom: 12px;
 }}
 .progress-segment-item {{
   flex: 1;
@@ -858,9 +955,15 @@ def render_html_cover(content: Dict[str, Any], theme: Dict[str, Any], total_slid
     hero = content.get("hero", {})
     hero_val = html.escape(str(hero.get("value", "")))
     hero_lbl = html.escape(str(hero.get("label", "")))
-    date_str = html.escape(str(content.get("date", "19 OKT 2026"))).upper()
+    date_str = html.escape(str(content.get("date", "18 OKT 2026"))).upper()
 
     img_uri = get_image_data_uri(content.get("hero_image"))
+
+    s1_credit = format_photo_credit_text(
+        content.get("hero_image_credit") or (content.get("photo_sources") or {}).get("slide1")
+    )
+    hero_lbl = format_point_body_html(str(hero.get("label", "")))
+    hero_val = html.escape(str(hero.get("value", ""))).replace("**", "").replace("*", "")
 
     stat_html = ""
     if hero_val:
@@ -910,6 +1013,7 @@ def render_html_cover(content: Dict[str, Any], theme: Dict[str, Any], total_slid
 
   <div class="cover-photo-wrapper">
     {photo_dom}
+    <div class="photo-credit-badge">FOTO: {s1_credit}</div>
     <div class="photo-gradient-overlay">
       <div class="photo-swipe-prompt">
         <span class="photo-swipe-arrow">→</span>
@@ -932,8 +1036,12 @@ def render_html_context(content: Dict[str, Any], theme: Dict[str, Any], total_sl
     hook = format_hook_html(s2.get("hook", "Kenapa Masalah Ini Tiba-tiba Meledak di Lapangan?"))
     paragraphs = s2.get("paragraphs") or s2.get("points") or []
     if isinstance(paragraphs, str):
-        paragraphs = [p.strip() for p in paragraphs.split("\n\n") if p.strip()]
-    takeaway = html.escape(s2.get("takeaway", "Fenomena ini bukan sekadar antrean fisik, tapi sinyal disrupsi distribusi yang merugikan publik."))
+        paragraphs = [p.strip() for p in paragraphs.split(chr(10) + chr(10)) if p.strip()]
+    takeaway = format_point_body_html(s2.get("takeaway", "Fenomena ini bukan sekadar antrean fisik, tapi sinyal disrupsi distribusi yang merugikan publik."))
+    s2_credit = format_photo_credit_text(
+        (content.get("photo_sources") or {}).get("slide2"),
+        content.get("hero_image_credit")
+    )
 
     img_uri = get_image_data_uri(content.get("slide2_image") or content.get("hero_image"))
 
@@ -977,6 +1085,7 @@ def render_html_context(content: Dict[str, Any], theme: Dict[str, Any], total_sl
       <div class="slide2-media-card">
         <img src="{img_uri}" class="slide2-media-img" alt="Dokumentasi Fakta Lapangan" />
         <div class="slide2-media-badge">DOKUMENTASI FAKTA LAPANGAN</div>
+        <div class="photo-credit-badge">FOTO: {s2_credit}</div>
       </div>
 
       <div class="slide2-narrative-card">
@@ -1007,34 +1116,52 @@ def render_html_context(content: Dict[str, Any], theme: Dict[str, Any], total_sl
 
 
 # ==============================================================================
-# RENDERER SLIDE 3: BEDAH DATA & IMPLIKASI (FOTO + CHART OVERLAY)
+# RENDERER SLIDE 3: BEDAH DATA & IMPLIKASI
 # ==============================================================================
 def render_html_metric(content: Dict[str, Any], theme: Dict[str, Any], total_slides: int) -> str:
     s3 = content.get("slide_metric", {})
     eyebrow = html.escape(s3.get("eyebrow", "02 / BEDAH DATA RISET"))
-    hook = format_hook_html(s3.get("hook", "Berapa Besar Selisih Beban Belanja yang Harus Ditanggung Warga?"))
-    m_val = html.escape(str(s3.get("metric_value", "Rp 17.500/kg")))
-    m_lbl = html.escape(str(s3.get("metric_label", "harga riil per kilogram beras medium di tingkat pedagang eceran")))
+    hook = format_hook_html(s3.get("hook", "Berapa Triliun Rupiah yang Diam-diam Disedot dari Kantong Kita?"))
+    m_val = html.escape(str(s3.get("metric_value", "Rp 150 T+")))
+    m_lbl = html.escape(str(s3.get("metric_label", "estimasi alokasi anggaran energi yang rentan bocor")))
 
+    keringat = content.get("keringat_calc", {})
+    keringat_html = ""
+    if keringat:
+        keringat_html = f"""
+        <div class="slide3-keringat-box">
+          <div class="slide3-keringat-row"><span>Driver Ojol</span> <b>{html.escape(keringat.get('ojol', '-'))}</b></div>
+          <div class="slide3-keringat-row"><span>Buruh UMR</span> <b>{html.escape(keringat.get('umr', '-'))}</b></div>
+          <div class="slide3-keringat-row"><span>Anggota DPR</span> <b>{html.escape(keringat.get('dpr', '-'))}</b></div>
+        </div>
+        """
+
+    s3_credit = format_photo_credit_text(
+        (content.get("photo_sources") or {}).get("slide3"),
+        content.get("hero_image_credit")
+    )
     img_uri = get_image_data_uri(content.get("slide3_image") or content.get("hero_image"))
     chart_svg = content.get("chart_svg")
+    credit_badge_dom = f'<div class="photo-credit-badge" style="top: 14px; right: 14px; padding: 4px 10px; font-size: 10px;">FOTO: {s3_credit}</div>'
     if chart_svg:
         if img_uri:
-            chart_or_img_dom = f'<div class="slide3-img-pane" style="position:relative; overflow:hidden;"><img src="{img_uri}" class="slide3-img" style="filter: brightness(0.20) contrast(1.15); width:100%; height:100%; object-fit:cover; display:block;" alt="Visual Analisis Data" /><div style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(34,21,14,0.35);">{chart_svg}</div></div>'
+            chart_or_img_dom = f'<div class="slide3-img-pane" style="position:relative; overflow:hidden;"><img src="{img_uri}" class="slide3-img" style="filter: brightness(0.20) contrast(1.15); width:100%; height:100%; object-fit:cover; display:block;" alt="Visual Analisis Data" />{credit_badge_dom}<div style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(34,21,14,0.35);">{chart_svg}</div></div>'
         else:
-            chart_or_img_dom = f'<div class="slide3-img-pane" style="display:flex;align-items:center;justify-content:center;background:#22150E;">{chart_svg}</div>'
+            chart_or_img_dom = f'<div class="slide3-img-pane" style="position:relative; display:flex;align-items:center;justify-content:center;background:#22150E;">{credit_badge_dom}{chart_svg}</div>'
     else:
-        chart_or_img_dom = f'<div class="slide3-img-pane"><img src="{img_uri}" class="slide3-img" alt="Visual Analisis Data" /></div>'
+        chart_or_img_dom = f'<div class="slide3-img-pane" style="position:relative;"><img src="{img_uri}" class="slide3-img" alt="Visual Analisis Data" />{credit_badge_dom}</div>' 
 
-    col1_title = html.escape(s3.get("col1_title", "Beban Anggaran Rumah Tangga"))
+    m_val = html.escape(str(s3.get("metric_value", "Rp 150 T+"))).replace("**", "").replace("*", "")
+    m_lbl = format_point_body_html(str(s3.get("metric_label", "estimasi alokasi anggaran energi yang rentan bocor")))
+    col1_title = format_point_body_html(s3.get("col1_title", "Beban Dompet Rakyat / Ritel"))
     col1_points = s3.get("col1_points", [])
     col1_html = "".join(f'<div class="slide3-paragraph-text">{format_point_body_html(p)}</div>' for p in col1_points[:3])
 
-    col2_title = html.escape(s3.get("col2_title", "Klaim Sepihak Regulator"))
+    col2_title = format_point_body_html(s3.get("col2_title", "Ilusi Pengawasan & Kinerja Pejabat"))
     col2_points = s3.get("col2_points", [])
     col2_html = "".join(f'<div class="slide3-paragraph-text">{format_point_body_html(p)}</div>' for p in col2_points[:3])
 
-    alert_text = html.escape(s3.get("alert_text", "Biaya dari lambannya pembenahan distribusi pangan pada akhirnya selalu dibayar tunai oleh dompet konsumen paling bawah."))
+    alert_text = format_point_body_html(s3.get("alert_text", "Setiap liter subsidi yang salah sasaran adalah hak rakyat kecil yang terampas."))
 
     prog_bars = "".join(
         f'<div class="progress-segment-item {"active" if idx < 3 else ""}"></div>'
@@ -1073,14 +1200,17 @@ def render_html_metric(content: Dict[str, Any], theme: Dict[str, Any], total_sli
         <div class="slide3-metric-pane">
           <div class="slide3-metric-val">{m_val}</div>
           <div class="slide3-metric-lbl">{m_lbl}</div>
+          {keringat_html}
         </div>
       </div>
 
       <div class="slide3-dual-columns">
         <div class="slide3-column-card">
-          <div class="slide3-column-header">{col1_title}</div>
-          <div class="slide3-points-list">
-            {col1_html}
+          <div>
+            <div class="slide3-column-header">{col1_title}</div>
+            <div class="slide3-points-list">
+              {col1_html}
+            </div>
           </div>
           <div class="slide3-column-footer">
             <span>METRIKA DATA AUDIT</span>
@@ -1088,9 +1218,11 @@ def render_html_metric(content: Dict[str, Any], theme: Dict[str, Any], total_sli
           </div>
         </div>
         <div class="slide3-column-card">
-          <div class="slide3-column-header">{col2_title}</div>
-          <div class="slide3-points-list">
-            {col2_html}
+          <div>
+            <div class="slide3-column-header">{col2_title}</div>
+            <div class="slide3-points-list">
+              {col2_html}
+            </div>
           </div>
           <div class="slide3-column-footer">
             <span>METRIKA DATA AUDIT</span>
@@ -1125,15 +1257,19 @@ def render_html_metric(content: Dict[str, Any], theme: Dict[str, Any], total_sli
 def render_html_strategy(content: Dict[str, Any], theme: Dict[str, Any], total_slides: int) -> str:
     s4 = content.get("slide_strategy", {})
     eyebrow = html.escape(s4.get("eyebrow", "03 / SKENARIO STRATEGIS"))
-    hook = format_hook_html(s4.get("hook", "Tiga Realita Lapangan: Himbauan Berhemat di Tengah Harga yang Naik"))
+    hook = format_hook_html(s4.get("hook", "Tiga Benteng Finansial Sebelum Subsidi Makin Mengetat"))
     scenarios = s4.get("scenarios", [])
-    takeaway = html.escape(s4.get("takeaway", "Himbauan hidup hemat dari pejabat yang tidak pernah merasakan antre bahan pokok terasa janggal bagi masyarakat."))
+    takeaway = format_point_body_html(s4.get("takeaway", "Subsidi energi boleh menyusut, tapi strategi efisiensi biaya hidupmu tidak boleh ikut lumpuh."))
+    s4_credit = format_photo_credit_text(
+        (content.get("photo_sources") or {}).get("slide4"),
+        content.get("hero_image_credit")
+    )
 
     img_uri = get_image_data_uri(content.get("slide4_image") or content.get("hero_image"))
 
     scenarios_html = []
     for sc in scenarios[:3]:
-        tag = html.escape(sc.get("tag", "SKENARIO"))
+        tag = html.escape(sc.get("tag", "SKENARIO")).replace("**", "").replace("*", "")
         body = format_point_body_html(sc.get("text", ""))
         scenarios_html.append(f"""
         <div class="slide4-scenario-card">
@@ -1177,6 +1313,7 @@ def render_html_strategy(content: Dict[str, Any], theme: Dict[str, Any], total_s
       <div class="slide4-media-card">
         <img src="{img_uri}" class="slide4-media-img" alt="Visual Strategi" />
         <div class="slide4-media-badge">PANDUAN MITIGASI RISIKO</div>
+        <div class="photo-credit-badge">FOTO: {s4_credit}</div>
       </div>
 
       <div class="slide4-scenarios-container">
@@ -1207,29 +1344,35 @@ def render_html_strategy(content: Dict[str, Any], theme: Dict[str, Any], total_s
 # RENDERER SLIDE 5: VERDICT REDAKSI & RUANG DISKUSI (DENGAN HIGHLIGHTS BOX)
 # ==============================================================================
 def render_html_verdict(content: Dict[str, Any], theme: Dict[str, Any], total_slides: int) -> str:
-    verdict_text = strip_emoji(html.escape(content.get("verdict", "")))
-    cta_text = strip_emoji(html.escape(content.get("cta", "")))
+    hook = format_hook_html(content.get("slide5_hook", "Verdict Riset & <red>Ruang Pengadilan Publik</red>"))
+    verdict_text = format_point_body_html(content.get("verdict", ""))
+    cta_text = format_point_body_html(content.get("cta", ""))
     sources = content.get("sources", [])
     highlights = content.get("slide5_highlights", [
-        "Penyelesaian lonjakan harga bahan pokok membutuhkan pembongkaran hambatan distribusi, bukan sekadar imbauan normatif di media massa.",
-        "Kementerian terkait wajib membuka data realisasi pasokan dan jalur distribusi pangan secara berkala kepada publik.",
-        "Perlindungan daya beli konsumen harus diukur dari stabilitas harga nyata di pasar tradisional, bukan angka statistik di ruang rapat."
+        "Antrean panjang membuktikan kegagalan tata kelola distribusi, bukan kelangkaan pasokan.",
+        "Pemilik kendaraan mewah wajib beralih ke BBM non-subsidi demi keadilan sosial.",
+        "Kunci pengawasan ada pada digitalisasi transaksi dan penegakan sanksi tegas di SPBU."
     ])
 
+    s5_credit = format_photo_credit_text(
+        (content.get("photo_sources") or {}).get("slide5"),
+        content.get("hero_image_credit")
+    )
     img_uri = get_image_data_uri(content.get("slide5_image") or content.get("hero_image"))
 
     sources_html = []
     for s in sources:
-        clean_s = strip_emoji(html.escape(s))
+        clean_s = html.escape(str(s)).replace("**", "").replace("*", "")
         sources_html.append(f'<div class="source-pill">{clean_s}</div>')
 
     highlights_html = []
     for h in highlights[:3]:
-        clean_h = strip_emoji(html.escape(h))
+        clean_h_text = re.sub(r"^[\s\-\—\*\•]+\s*", "", str(h)).strip()
+        formatted_h = format_point_body_html(clean_h_text)
         highlights_html.append(f"""
         <div class="slide5-highlight-item">
-          <span class="slide5-highlight-bullet">—</span>
-          <span>{clean_h}</span>
+          <span class="slide5-highlight-check">—</span>
+          <span>{formatted_h}</span>
         </div>
         """)
 
@@ -1262,14 +1405,15 @@ def render_html_verdict(content: Dict[str, Any], theme: Dict[str, Any], total_sl
     <div class="slide-main-body">
       <div class="slide-header-box">
         <div class="slide-eyebrow-pill">04 / KESIMPULAN RISET</div>
-        <h2 class="slide-hook-headline">Verdict Riset & Ruang Diskusi Terbuka</h2>
+        <h2 class="slide-hook-headline">{hook}</h2>
       </div>
 
       <div class="slide5-verdict-banner">
         <img src="{img_uri}" class="slide5-verdict-img" alt="Verdict Visual" />
+        <div class="photo-credit-badge" style="top: 20px; right: 24px;">FOTO: {s5_credit}</div>
         <div class="slide5-verdict-overlay">
           <div class="slide5-verdict-tag">
-            <span>VERDICT OBJEKTIF REDAKSI METRIKA</span>
+            <span>VERDICT REDAKSI METRIKA</span>
           </div>
           <div class="slide5-verdict-quote">{verdict_text}</div>
         </div>
@@ -1309,7 +1453,7 @@ def render_html_verdict(content: Dict[str, Any], theme: Dict[str, Any], total_sl
 
 
 # ==============================================================================
-# RENDERER ENGINE: PLAYWRIGHT HEADLESS CHROMIUM & WEASYPRINT FALLBACK (5 SLIDES)
+# RENDERER ENGINE: PLAYWRIGHT HEADLESS CHROMIUM (5 SLIDES)
 # ==============================================================================
 def render_carousel_slides(
     content: Dict[str, Any], out_dir: str | Path, fmt: str = "PNG"
