@@ -1,14 +1,15 @@
 name: METRIKA Media Multi-Program Automation
 
 on:
-  # Jadwal otomatis 3 kali sehari (WIB = UTC+7):
-  # - 00:15 UTC = 07:15 WIB (Pagi)
-  # - 05:15 UTC = 12:15 WIB (Siang)
-  # - 12:15 UTC = 19:15 WIB (Malam)
   schedule:
-    - cron: '15 0,5,12 * * *'
+    # 1. Edisi Pagi: Pukul 07:00 WIB (00:00 UTC) - Jam Berangkat Kerja & Sarapan
+    - cron: '0 0 * * *'
+    # 2. Edisi Siang: Pukul 12:30 WIB (05:30 UTC) - Jam Istirahat Makan Siang
+    - cron: '30 5 * * *'
+    # 3. Edisi Malam: Pukul 19:00 WIB (12:00 UTC) - Prime Time Pulang Kerja & Santai
+    - cron: '0 12 * * *'
 
-  # Eksekusi manual via tab "Actions" -> "Run workflow" (Bisa pilih rubrik manual untuk tes)
+  # Eksekusi manual via tab "Actions" -> "Run workflow" (Bisa pilih rubrik manual untuk uji coba)
   workflow_dispatch:
     inputs:
       program_override:
@@ -28,7 +29,7 @@ permissions:
 jobs:
   build-and-distribute-media:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 15
 
     steps:
       - name: 1. Checkout Repository
@@ -42,15 +43,15 @@ jobs:
           python-version: '3.11'
           cache: 'pip'
 
-      - name: 3. Install System Dependencies (FFmpeg & Linux Fonts)
+      - name: 3. Install System Fonts
         run: |
           sudo apt-get update
-          sudo apt-get install -y ffmpeg fonts-dejavu-core fonts-liberation
+          sudo apt-get install -y fonts-dejavu-core fonts-liberation
 
       - name: 4. Install Python Libraries & Headless Chromium (Playwright Engine)
         run: |
           python -m pip install --upgrade pip
-          pip install feedparser requests beautifulsoup4 edge-tts Pillow playwright ddgs duckduckgo_search
+          pip install feedparser requests beautifulsoup4 Pillow playwright
           playwright install chromium --with-deps
 
       - name: 5. Ensure Anti-Duplication Cache File Exists
@@ -73,7 +74,6 @@ jobs:
         with:
           name: daily-metrika-media
           path: |
-            output_media/*.mp4
             output_media/carousel/*.png
             output_media/carousel/*.html
             output_media/latest_analysis.json
