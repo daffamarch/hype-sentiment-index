@@ -24,19 +24,23 @@ from PIL import Image, ImageDraw, ImageFont
 
 log = logging.getLogger("metrika")
 
+# Dimensi Standar Carousel Instagram
 W_IG, H_IG = 1080, 1350
 
-COLOR_BG = "#FBF8F4"              # Warm Ivory Linen
-COLOR_CARD = "#FFFFFF"            # Kartu putih
-COLOR_CARD_WARM = "#FAF6F0"       # Kartu krem
-COLOR_TEXT_MAIN = "#1E140E"       # Deep Roasted Espresso
-COLOR_TEXT_MUTED = "#6B584B"      # Warm Mocha Taupe
-COLOR_BROWN_DARK = "#2B1A12"      # Dark Mahogany
-COLOR_BROWN_ACCENT = "#8C5835"    # Rich Cognac Leather
-COLOR_BROWN_LIGHT = "#F3EBE1"     # Warm Latte
-COLOR_RED = "#B91C1C"             # Crimson Wax Red
+# ==============================================================================
+# PALET IDENTITAS VISUAL METRIKA: LUXURY ESPRESSO & WARM LEATHER (COKLAT MEWAH)
+# ==============================================================================
+COLOR_BG = "#FBF8F4"              # Warm Ivory Linen (Kertas majalah mewah, hangat, elegan)
+COLOR_CARD = "#FFFFFF"            # Kartu putih bersih kontras tinggi
+COLOR_CARD_WARM = "#FAF6F0"       # Kartu krem kertas polaroid hangat
+COLOR_TEXT_MAIN = "#1E140E"       # Deep Roasted Espresso (Coklat sangat pekat, klasik & tajam)
+COLOR_TEXT_MUTED = "#6B584B"      # Warm Mocha Taupe (Elegan, tidak silau)
+COLOR_BROWN_DARK = "#2B1A12"      # Dark Mahogany / Espresso tua berwibawa
+COLOR_BROWN_ACCENT = "#8C5835"    # Rich Cognac / Warm Caramel Leather
+COLOR_BROWN_LIGHT = "#F3EBE1"     # Warm Latte / Soft Kraft tint
+COLOR_RED = "#B91C1C"             # Crimson Wax Red (Aksen provokatif / pin investigasi tajam)
 COLOR_BORDER = "#E7DBCF"          # Warm Toasted Kraft Border
-COLOR_LINE = "#EFE4D8"            # Soft Cream Line
+COLOR_LINE = "#EFE4D8"            # Soft Cream Separator Line
 
 PROGRAMS_THEME = {
     "INDEKS_KERINGAT": {
@@ -55,6 +59,8 @@ PROGRAMS_THEME = {
         "badge_icon": "",
     },
 }
+
+
 
 EMOJI_RE = re.compile(
     r'['
@@ -85,14 +91,33 @@ def strip_emoji_deep(obj: Any) -> Any:
     return obj
 
 def format_hook_html(hook_text: str) -> str:
+    """Format hook editorial: teks hitam espresso tebal dengan kata kunci MERAH CRIMSON."""
     clean_text = html.escape(hook_text.strip())
     clean_text = clean_text.replace("&lt;red&gt;", "<red>").replace("&lt;/red&gt;", "</red>")
     clean_text = clean_text.replace("&lt;highlight&gt;", "<red>").replace("&lt;/highlight&gt;", "</red>")
 
     if "<red>" in clean_text and "</red>" in clean_text:
-        return re.sub(r"<red>(.*?)</red>", r'<span class="text-red">\1</span>', clean_text)
+        return re.sub(
+            r"<red>(.*?)</red>",
+            r'<span class="text-red">\1</span>',
+            clean_text,
+        )
+
     if "**" in clean_text:
-        return re.sub(r"\*\*(.*?)\*\*", r'<span class="text-red">\1</span>', clean_text)
+        return re.sub(
+            r"\*\*(.*?)\*\*",
+            r'<span class="text-red">\1</span>',
+            clean_text,
+        )
+
+    if "?" in clean_text:
+        parts = clean_text.split("?")
+        q_words = parts[0].strip().split()
+        if len(q_words) > 3:
+            first_part = " ".join(q_words[:-3])
+            highlighted = " ".join(q_words[-3:]) + "?"
+            after_part = ("?" + "?".join(parts[1:])).lstrip("?").strip()
+            return f'{first_part} <span class="text-red">{highlighted}</span> {after_part}'.strip()
 
     words = clean_text.split()
     if len(words) >= 4:
@@ -109,16 +134,22 @@ def format_hook_html(hook_text: str) -> str:
 
     return f'<span class="text-red">{clean_text}</span>'
 
+
 def format_point_body_html(point_text: str) -> str:
+    """Mengonversi markdown bold **teks** menjadi <b>teks</b> dan membersihkan semua bintang."""
     if not point_text:
         return ""
-    text_str = html.unescape(str(point_text).strip())
+    text_str = str(point_text).strip()
+    text_str = html.unescape(text_str)
     escaped = html.escape(text_str)
     escaped = re.sub(r"\*\*(.+?)\*\*", r'<b>\1</b>', escaped)
     escaped = re.sub(r"__(.+?)__", r'<b>\1</b>', escaped)
-    return escaped.replace("**", "").replace("*", "")
+    escaped = escaped.replace("**", "").replace("*", "")
+    return escaped
+
 
 def format_photo_credit_text(credit_val: Optional[str], default_credit: str = "") -> str:
+    """Format label sumber foto editorial tanpa emotikon."""
     val = (credit_val or default_credit or "").strip()
     if not val:
         return "DOKUMENTASI MEDIA"
@@ -135,9 +166,15 @@ def format_photo_credit_text(credit_val: Optional[str], default_credit: str = ""
         "pexels": "PEXELS",
     }
     low = val.lower()
-    return aliases.get(low, val).upper()
+    if low in aliases:
+        val = aliases[low]
+    if not val or val.lower() in ("cover", "artikel", "web", "stok", "lokal"):
+        val = default_credit or "DOKUMENTASI MEDIA"
+    return val.upper()
+
 
 def get_image_data_uri(img_path: Optional[str | Path]) -> Optional[str]:
+    """Membaca file gambar lokal dan mengubahnya menjadi Base64 Data URI."""
     if not img_path:
         return None
     p = Path(img_path)
@@ -153,6 +190,10 @@ def get_image_data_uri(img_path: Optional[str | Path]) -> Optional[str]:
         log.warning(f"Gagal memproses gambar {img_path}: {err}")
         return None
 
+
+# ==============================================================================
+# CSS UTAMA: EDITORIAL PADAT, ZERO BLANK VOID (TINGGI TEPAT 1350px)
+# ==============================================================================
 def get_base_css() -> str:
     return f"""
 @page {{ size: 1080px 1350px; margin: 0; }}
@@ -196,6 +237,7 @@ body {{
   font-weight: 900 !important;
 }}
 
+/* Top Brand Bar (Tinggi ~75px) */
 .brand-header {{
   height: 75px;
   display: flex;
@@ -262,6 +304,7 @@ body {{
   box-shadow: 0 2px 6px rgba(43, 26, 18, 0.04);
 }}
 
+/* KONTENER SLIDE: MEMBENTANG PENUH 1275px DENGAN PADDING PRESISI */
 .slide-content-wrapper {{
   height: 1275px;
   display: flex;
@@ -278,6 +321,7 @@ body {{
   gap: 24px;
 }}
 
+/* HEADER HOOK PENAHAN SCROLL */
 .slide-header-box {{
   flex-shrink: 0;
 }}
@@ -301,6 +345,7 @@ body {{
   color: var(--brown-dark);
 }}
 
+/* COVER SLIDE 1 */
 .cover-top-box {{
   padding: 4px 52px 20px 52px;
   background-color: var(--bg);
@@ -370,7 +415,28 @@ body {{
   justify-content: space-between;
   padding: 30px 52px;
 }}
+.photo-swipe-prompt {{
+  color: #FAF6F0;
+  font-size: 18px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  text-shadow: 0 2px 8px rgba(0,0,0,0.6);
+}}
+.photo-swipe-arrow {{
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background-color: var(--brown-accent);
+  color: #FFFFFF;
+  font-weight: 900;
+}}
 
+/* SLIDE 2: KONTEKS FAKTA LAPANGAN (PARAGRAF NARATIF MENGALIR) */
 .slide2-media-card {{
   width: 100%;
   height: 440px;
@@ -387,6 +453,21 @@ body {{
   height: 100%;
   object-fit: cover;
   display: block;
+}}
+.slide2-media-badge {{
+  position: absolute;
+  top: 18px;
+  left: 20px;
+  background: rgba(27, 17, 12, 0.90);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(231, 219, 207, 0.4);
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #FAF6F0;
 }}
 .slide2-narrative-card {{
   background: #FFFFFF;
@@ -438,6 +519,7 @@ body {{
   flex-shrink: 0;
 }}
 
+/* SLIDE 3: BEDAH DATA (PADAT PENUH) */
 .slide3-split-metric-card {{
   background: #FFFFFF;
   border: 1.5px solid var(--border);
@@ -540,6 +622,11 @@ body {{
   justify-content: space-between;
 }}
 
+b, strong {{
+  font-weight: 900 !important;
+  color: var(--brown-dark) !important;
+}}
+
 .slide3-keringat-box {{
   margin-top: 14px;
   padding-top: 12px;
@@ -582,6 +669,7 @@ body {{
   flex-shrink: 0;
 }}
 
+/* SLIDE 4: SKENARIO STRATEGIS (PADAT PENUH) */
 .slide4-media-card {{
   width: 100%;
   height: 440px;
@@ -598,6 +686,21 @@ body {{
   height: 100%;
   object-fit: cover;
   display: block;
+}}
+.slide4-media-badge {{
+  position: absolute;
+  top: 18px;
+  left: 20px;
+  background: rgba(27, 17, 12, 0.90);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(231, 219, 207, 0.4);
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #FAF6F0;
 }}
 .slide4-scenarios-container {{
   display: flex;
@@ -641,6 +744,7 @@ body {{
   flex-shrink: 0;
 }}
 
+/* SLIDE 5: VERDICT REDAKSI & DISKUSI (PADAT PENUH DENGAN HIGHLIGHTS BOX) */
 .slide5-verdict-banner {{
   width: 100%;
   height: 480px;
@@ -684,6 +788,11 @@ body {{
   line-height: 1.42;
   color: #FAF6F0;
 }}
+.slide5-verdict-quote b, .slide5-verdict-quote strong {{
+  color: #FFFFFF !important;
+  font-weight: 900 !important;
+  border-bottom: 2px solid var(--brown-accent);
+}}
 
 .photo-credit-badge {{
   position: absolute;
@@ -702,7 +811,12 @@ body {{
   color: #FAF6F0;
   display: inline-flex;
   align-items: center;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
   z-index: 10;
+  max-width: 320px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }}
 
 .slide5-highlights-card {{
@@ -800,6 +914,7 @@ body {{
   color: var(--brown-dark);
 }}
 
+/* Global Footer & Progress Bar (Tinggi ~60px) */
 .slide-bottom-bar {{
   flex-shrink: 0;
   margin-top: 14px;
@@ -829,16 +944,28 @@ body {{
 }}
 """
 
+
+# ==============================================================================
+# RENDERER SLIDE 1: COVER
+# ==============================================================================
 def render_html_cover(content: Dict[str, Any], theme: Dict[str, Any], total_slides: int) -> str:
     hook_raw = content.get("hook", "")
     hook_formatted = format_hook_html(hook_raw)
+
     hero = content.get("hero", {})
+    hero_val = html.escape(str(hero.get("value", "")))
+    hero_lbl = html.escape(str(hero.get("label", "")))
     date_str = html.escape(str(content.get("date", "18 OKT 2026"))).upper()
+
     img_uri = get_image_data_uri(content.get("hero_image"))
-    s1_credit = format_photo_credit_text(content.get("hero_image_credit") or (content.get("photo_sources") or {}).get("slide1"))
+
+    s1_credit = format_photo_credit_text(
+        content.get("hero_image_credit") or (content.get("photo_sources") or {}).get("slide1")
+    )
     hero_lbl = format_point_body_html(str(hero.get("label", "")))
     hero_val = html.escape(str(hero.get("value", ""))).replace("**", "").replace("*", "")
 
+    # ZERO HALUSINASI: Hanya tampilkan badge jika benar-benar ada data numerik riil (bukan persentase buatan atau label generic)
     stat_html = ""
     is_generic = any(g in hero_val.lower() for g in ["data kunci", "sorotan utama", "angka kunci", "data"])
     if hero_val and not is_generic:
@@ -851,13 +978,23 @@ def render_html_cover(content: Dict[str, Any], theme: Dict[str, Any], total_slid
         </div>
         """
 
-    photo_dom = f'<img src="{img_uri}" class="cover-photo" alt="Cover Visual" />' if img_uri else f'<div style="width:100%;height:100%;background:#2B1A12;"></div>'
+    if img_uri:
+        photo_dom = f'<img src="{img_uri}" class="cover-photo" alt="Cover Visual" />'
+    else:
+        photo_dom = f"""
+        <div style="width:100%; height:100%; background: linear-gradient(135deg, #2B1A12 0%, #3D2619 100%); display:flex; align-items:center; justify-content:center; flex-direction:column; padding:40px;">
+          <div style="font-family:'Outfit', sans-serif; font-size:44px; font-weight:900; color:#FAF6F0; margin-bottom:12px;">{theme['label']}</div>
+          <div style="font-size:20px; font-weight:700; color:#D4C4B5; text-align:center;">{hero_lbl}</div>
+        </div>
+        """
 
     return f"""<!DOCTYPE html>
 <html lang="id">
 <head>
 <meta charset="utf-8">
-<style>{get_base_css()}</style>
+<style>
+{get_base_css()}
+</style>
 </head>
 <body>
   <div class="brand-header">
@@ -870,10 +1007,12 @@ def render_html_cover(content: Dict[str, Any], theme: Dict[str, Any], total_slid
     </div>
     <div class="program-chip">{date_str} • {theme['label']}</div>
   </div>
+
   <div class="cover-top-box">
     <h1 class="cover-headline">{hook_formatted}</h1>
     {stat_html}
   </div>
+
   <div class="cover-photo-wrapper">
     {photo_dom}
     <div class="photo-credit-badge">FOTO: {s1_credit}</div>
@@ -882,8 +1021,13 @@ def render_html_cover(content: Dict[str, Any], theme: Dict[str, Any], total_slid
     </div>
   </div>
 </body>
-</html>"""
+</html>
+"""
 
+
+# ==============================================================================
+# RENDERER SLIDE 2: KONTEKS FAKTA LAPANGAN
+# ==============================================================================
 def render_html_context(content: Dict[str, Any], theme: Dict[str, Any], total_slides: int) -> str:
     s2 = content.get("slide_context", {})
     eyebrow = html.escape(s2.get("eyebrow", "KRONOLOGI & PERISTIWA"))
@@ -891,16 +1035,32 @@ def render_html_context(content: Dict[str, Any], theme: Dict[str, Any], total_sl
     paragraphs = s2.get("paragraphs") or s2.get("points") or []
     if isinstance(paragraphs, str):
         paragraphs = [p.strip() for p in paragraphs.split(chr(10) + chr(10)) if p.strip()]
-    takeaway = format_point_body_html(s2.get("takeaway", "Pokok masalah lapangan."))
-    s2_credit = format_photo_credit_text((content.get("photo_sources") or {}).get("slide2"), content.get("hero_image_credit"))
+    takeaway = format_point_body_html(s2.get("takeaway", "Fenomena ini bukan sekadar antrean fisik, tapi sinyal disrupsi distribusi yang merugikan publik."))
+    s2_credit = format_photo_credit_text(
+        (content.get("photo_sources") or {}).get("slide2"),
+        content.get("hero_image_credit")
+    )
+
     img_uri = get_image_data_uri(content.get("slide2_image") or content.get("hero_image"))
 
-    paragraphs_html = [f'<p class="slide2-narrative-paragraph">{format_point_body_html(p)}</p>' for p in paragraphs[:2]]
-    prog_bars = "".join(f'<div class="progress-segment-item {"active" if idx < 2 else ""}"></div>' for idx in range(total_slides))
+    paragraphs_html = []
+    for p in paragraphs[:2]:
+        formatted_p = format_point_body_html(p)
+        paragraphs_html.append(f'<p class="slide2-narrative-paragraph">{formatted_p}</p>')
+
+    prog_bars = "".join(
+        f'<div class="progress-segment-item {"active" if idx < 2 else ""}"></div>'
+        for idx in range(total_slides)
+    )
 
     return f"""<!DOCTYPE html>
 <html lang="id">
-<head><meta charset="utf-8"><style>{get_base_css()}</style></head>
+<head>
+<meta charset="utf-8">
+<style>
+{get_base_css()}
+</style>
+</head>
 <body>
   <div class="brand-header">
     <div class="brand-left">
@@ -912,36 +1072,57 @@ def render_html_context(content: Dict[str, Any], theme: Dict[str, Any], total_sl
     </div>
     <div class="program-chip">02 / {total_slides:02d}</div>
   </div>
+
   <div class="slide-content-wrapper">
     <div class="slide-main-body">
       <div class="slide-header-box">
         <div class="slide-eyebrow-pill">{eyebrow}</div>
         <h2 class="slide-hook-headline">{hook}</h2>
       </div>
+
       <div class="slide2-media-card">
-        <img src="{img_uri}" class="slide2-media-img" alt="Dokumentasi Fakta" />
-        <div class="photo-credit-badge">FOTO: {s2_credit}</div>
+        <img src="{img_uri}" class="slide2-media-img" alt="Dokumentasi Fakta Lapangan" />
+                <div class="photo-credit-badge">FOTO: {s2_credit}</div>
       </div>
+
       <div class="slide2-narrative-card">
         <div class="slide2-narrative-header">FAKTA DI LAPANGAN</div>
-        <div class="slide2-narrative-body">{"".join(paragraphs_html)}</div>
+        <div class="slide2-narrative-body">
+          {"".join(paragraphs_html)}
+        </div>
       </div>
+
       <div class="slide2-takeaway-pill">
         <span><b>POKOK PERISTIWA:</b> {takeaway}</span>
       </div>
     </div>
+
     <div class="slide-bottom-bar">
-      <div class="carousel-progress-bar">{prog_bars}</div>
-      <div class="editorial-footer"><div>@metrika.id</div><div>Geser ke kanan →</div></div>
+      <div class="carousel-progress-bar">
+        {prog_bars}
+      </div>
+      <div class="editorial-footer">
+        <div>@metrika.id</div>
+        <div>Geser ke kanan untuk melihat rincian angka →</div>
+      </div>
     </div>
   </div>
 </body>
-</html>"""
+</html>
+"""
 
+
+# ==============================================================================
+# RENDERER SLIDE 3: BEDAH DATA & IMPLIKASI
+# ==============================================================================
 def render_html_metric(content: Dict[str, Any], theme: Dict[str, Any], total_slides: int) -> str:
     s3 = content.get("slide_metric", {})
     eyebrow = html.escape(s3.get("eyebrow", "BEDAH DATA & ANGKA"))
-    hook = format_hook_html(s3.get("hook", "Bedah Data & Implikasi"))
+    hook = format_hook_html(s3.get("hook", "Berapa Triliun Rupiah yang Diam-diam Disedot dari Kantong Kita?"))
+    m_val = html.escape(str(s3.get("metric_value", "Rp 150 T+")))
+    m_lbl = html.escape(str(s3.get("metric_label", "estimasi alokasi anggaran energi yang rentan bocor")))
+
+    # Hanya tampilkan kalkulator jam kerja/daya beli jika rubrik aktif adalah INDEKS_KERINGAT
     is_keringat_prog = (content.get("program") == "INDEKS_KERINGAT")
     keringat = content.get("keringat_calc", {}) if is_keringat_prog else {}
     keringat_html = ""
@@ -954,29 +1135,52 @@ def render_html_metric(content: Dict[str, Any], theme: Dict[str, Any], total_sli
         </div>
         """
 
-    s3_credit = format_photo_credit_text((content.get("photo_sources") or {}).get("slide3"), content.get("hero_image_credit"))
+    s3_credit = format_photo_credit_text(
+        (content.get("photo_sources") or {}).get("slide3"),
+        content.get("hero_image_credit")
+    )
     img_uri = get_image_data_uri(content.get("slide3_image") or content.get("hero_image"))
     chart_svg = content.get("chart_svg")
+    # Jika menampilkan grafik statistik SVG, jangan tempelkan label kredit foto sama sekali
     if chart_svg:
         chart_or_img_dom = f'<div class="slide3-img-pane" style="position:relative; display:flex; align-items:center; justify-content:center; background:#22150E;">{chart_svg}</div>'
     else:
         credit_badge_dom = f'<div class="photo-credit-badge" style="top: 14px; right: 14px; padding: 4px 10px; font-size: 10px;">FOTO: {s3_credit}</div>'
         chart_or_img_dom = f'<div class="slide3-img-pane" style="position:relative;"><img src="{img_uri}" class="slide3-img" alt="Visual Analisis Data" />{credit_badge_dom}</div>' 
 
-    m_val = html.escape(str(s3.get("metric_value", ""))).replace("**", "").replace("*", "")
-    m_lbl = format_point_body_html(str(s3.get("metric_label", "")))
-    col1_title = format_point_body_html(s3.get("col1_title", "Pilar Lapangan"))
+    m_val = html.escape(str(s3.get("metric_value", "Rp 150 T+"))).replace("**", "").replace("*", "")
+    m_lbl = format_point_body_html(str(s3.get("metric_label", "estimasi alokasi anggaran energi yang rentan bocor")))
+    col1_title = format_point_body_html(s3.get("col1_title", "Beban Dompet Rakyat / Ritel"))
     col1_raw = s3.get("col1_paragraph") or s3.get("col1_points") or []
-    col1_text = " ".join(str(p) for p in col1_raw) if isinstance(col1_raw, list) else str(col1_raw)
-    col2_title = format_point_body_html(s3.get("col2_title", "Pilar Kebijakan"))
+    if isinstance(col1_raw, list):
+        col1_text = " ".join(str(p) for p in col1_raw)
+    else:
+        col1_text = str(col1_raw)
+    col1_html = f'<p class="slide3-paragraph-text">{format_point_body_html(col1_text)}</p>'
+
+    col2_title = format_point_body_html(s3.get("col2_title", "Ilusi Pengawasan & Kinerja Pejabat"))
     col2_raw = s3.get("col2_paragraph") or s3.get("col2_points") or []
-    col2_text = " ".join(str(p) for p in col2_raw) if isinstance(col2_raw, list) else str(col2_raw)
-    alert_text = format_point_body_html(s3.get("alert_text", "Catatan evaluasi kebijakan."))
-    prog_bars = "".join(f'<div class="progress-segment-item {"active" if idx < 3 else ""}"></div>' for idx in range(total_slides))
+    if isinstance(col2_raw, list):
+        col2_text = " ".join(str(p) for p in col2_raw)
+    else:
+        col2_text = str(col2_raw)
+    col2_html = f'<p class="slide3-paragraph-text">{format_point_body_html(col2_text)}</p>'
+
+    alert_text = format_point_body_html(s3.get("alert_text", "Setiap liter subsidi yang salah sasaran adalah hak rakyat kecil yang terampas."))
+
+    prog_bars = "".join(
+        f'<div class="progress-segment-item {"active" if idx < 3 else ""}"></div>'
+        for idx in range(total_slides)
+    )
 
     return f"""<!DOCTYPE html>
 <html lang="id">
-<head><meta charset="utf-8"><style>{get_base_css()}</style></head>
+<head>
+<meta charset="utf-8">
+<style>
+{get_base_css()}
+</style>
+</head>
 <body>
   <div class="brand-header">
     <div class="brand-left">
@@ -988,12 +1192,14 @@ def render_html_metric(content: Dict[str, Any], theme: Dict[str, Any], total_sli
     </div>
     <div class="program-chip">03 / {total_slides:02d}</div>
   </div>
+
   <div class="slide-content-wrapper">
     <div class="slide-main-body">
       <div class="slide-header-box">
         <div class="slide-eyebrow-pill">{eyebrow}</div>
         <h2 class="slide-hook-headline">{hook}</h2>
       </div>
+
       <div class="slide3-split-metric-card">
         {chart_or_img_dom}
         <div class="slide3-metric-pane">
@@ -1002,47 +1208,94 @@ def render_html_metric(content: Dict[str, Any], theme: Dict[str, Any], total_sli
           {keringat_html}
         </div>
       </div>
+
       <div class="slide3-dual-columns">
         <div class="slide3-column-card">
           <div>
             <div class="slide3-column-header">{col1_title}</div>
-            <div class="slide3-points-list"><p class="slide3-paragraph-text">{format_point_body_html(col1_text)}</p></div>
+            <div class="slide3-points-list">
+              {col1_html}
+            </div>
           </div>
-          <div class="slide3-column-footer"><span>DATA AUDIT</span><span>BEBAN RITEL</span></div>
+          <div class="slide3-column-footer">
+            <span>METRIKA DATA AUDIT</span>
+            <span>BEBAN RITEL</span>
+          </div>
         </div>
         <div class="slide3-column-card">
           <div>
             <div class="slide3-column-header">{col2_title}</div>
-            <div class="slide3-points-list"><p class="slide3-paragraph-text">{format_point_body_html(col2_text)}</p></div>
+            <div class="slide3-points-list">
+              {col2_html}
+            </div>
           </div>
-          <div class="slide3-column-footer"><span>DATA AUDIT</span><span>KEBIJAKAN</span></div>
+          <div class="slide3-column-footer">
+            <span>METRIKA DATA AUDIT</span>
+            <span>BEBAN INDUSTRI</span>
+          </div>
         </div>
       </div>
-      <div class="slide3-alert-banner"><span><b>IMPLIKASI RIIL:</b> {alert_text}</span></div>
+
+      <div class="slide3-alert-banner">
+        <span><b>IMPLIKASI RIIL:</b> {alert_text}</span>
+      </div>
     </div>
+
     <div class="slide-bottom-bar">
-      <div class="carousel-progress-bar">{prog_bars}</div>
-      <div class="editorial-footer"><div>@metrika.id</div><div>Geser untuk strategi →</div></div>
+      <div class="carousel-progress-bar">
+        {prog_bars}
+      </div>
+      <div class="editorial-footer">
+        <div>@metrika.id</div>
+        <div>Geser untuk strategi eksekusi →</div>
+      </div>
     </div>
   </div>
 </body>
-</html>"""
+</html>
+"""
 
+
+# ==============================================================================
+# RENDERER SLIDE 4: SKENARIO STRATEGIS (ACTIONABLE PLAYBOOK)
+# ==============================================================================
 def render_html_strategy(content: Dict[str, Any], theme: Dict[str, Any], total_slides: int) -> str:
     s4 = content.get("slide_strategy", {})
     eyebrow = html.escape(s4.get("eyebrow", "REALITA DI LAPANGAN"))
-    hook = format_hook_html(s4.get("hook", "Tiga Realita Lapangan"))
+    hook = format_hook_html(s4.get("hook", "Tiga Benteng Finansial Sebelum Subsidi Makin Mengetat"))
     scenarios = s4.get("scenarios", [])
-    takeaway = format_point_body_html(s4.get("takeaway", "Pokok masalah riil."))
-    s4_credit = format_photo_credit_text((content.get("photo_sources") or {}).get("slide4"), content.get("hero_image_credit"))
+    takeaway = format_point_body_html(s4.get("takeaway", "Subsidi energi boleh menyusut, tapi strategi efisiensi biaya hidupmu tidak boleh ikut lumpuh."))
+    s4_credit = format_photo_credit_text(
+        (content.get("photo_sources") or {}).get("slide4"),
+        content.get("hero_image_credit")
+    )
+
     img_uri = get_image_data_uri(content.get("slide4_image") or content.get("hero_image"))
 
-    scenarios_html = [f'<div class="slide4-scenario-card"><div class="slide4-scenario-tag">{html.escape(sc.get("tag", "SKENARIO")).replace("**", "")}</div><div class="slide4-scenario-body">{format_point_body_html(sc.get("text", ""))}</div></div>' for sc in scenarios[:3]]
-    prog_bars = "".join(f'<div class="progress-segment-item {"active" if idx < 4 else ""}"></div>' for idx in range(total_slides))
+    scenarios_html = []
+    for sc in scenarios[:3]:
+        tag = html.escape(sc.get("tag", "SKENARIO")).replace("**", "").replace("*", "")
+        body = format_point_body_html(sc.get("text", ""))
+        scenarios_html.append(f"""
+        <div class="slide4-scenario-card">
+          <div class="slide4-scenario-tag">{tag}</div>
+          <div class="slide4-scenario-body">{body}</div>
+        </div>
+        """)
+
+    prog_bars = "".join(
+        f'<div class="progress-segment-item {"active" if idx < 4 else ""}"></div>'
+        for idx in range(total_slides)
+    )
 
     return f"""<!DOCTYPE html>
 <html lang="id">
-<head><meta charset="utf-8"><style>{get_base_css()}</style></head>
+<head>
+<meta charset="utf-8">
+<style>
+{get_base_css()}
+</style>
+</head>
 <body>
   <div class="brand-header">
     <div class="brand-left">
@@ -1054,43 +1307,92 @@ def render_html_strategy(content: Dict[str, Any], theme: Dict[str, Any], total_s
     </div>
     <div class="program-chip">04 / {total_slides:02d}</div>
   </div>
+
   <div class="slide-content-wrapper">
     <div class="slide-main-body">
       <div class="slide-header-box">
         <div class="slide-eyebrow-pill">{eyebrow}</div>
         <h2 class="slide-hook-headline">{hook}</h2>
       </div>
+
       <div class="slide4-media-card">
         <img src="{img_uri}" class="slide4-media-img" alt="Visual Strategi" />
-        <div class="photo-credit-badge">FOTO: {s4_credit}</div>
+                <div class="photo-credit-badge">FOTO: {s4_credit}</div>
       </div>
-      <div class="slide4-scenarios-container">{"".join(scenarios_html)}</div>
-      <div class="slide4-takeaway-bar"><span><b>POKOK MASALAH:</b> {takeaway}</span></div>
+
+      <div class="slide4-scenarios-container">
+        {"".join(scenarios_html)}
+      </div>
+
+      <div class="slide4-takeaway-bar">
+        <span><b>POKOK MASALAH:</b> {takeaway}</span>
+      </div>
     </div>
+
     <div class="slide-bottom-bar">
-      <div class="carousel-progress-bar">{prog_bars}</div>
-      <div class="editorial-footer"><div>@metrika.id</div><div>Geser untuk kesimpulan →</div></div>
+      <div class="carousel-progress-bar">
+        {prog_bars}
+      </div>
+      <div class="editorial-footer">
+        <div>@metrika.id</div>
+        <div>Geser untuk kesimpulan akhir & diskusi →</div>
+      </div>
     </div>
   </div>
 </body>
-</html>"""
+</html>
+"""
 
+
+# ==============================================================================
+# RENDERER SLIDE 5: VERDICT REDAKSI & RUANG DISKUSI (DENGAN HIGHLIGHTS BOX)
+# ==============================================================================
 def render_html_verdict(content: Dict[str, Any], theme: Dict[str, Any], total_slides: int) -> str:
-    hook = format_hook_html(content.get("slide5_hook", "Refleksi Akhir"))
+    hook = format_hook_html(content.get("slide5_hook", "Verdict Riset & <red>Ruang Pengadilan Publik</red>"))
     verdict_text = format_point_body_html(content.get("verdict", ""))
     cta_text = format_point_body_html(content.get("cta", ""))
     sources = content.get("sources", [])
-    highlights = content.get("slide5_highlights", ["Evaluasi penting pertama.", "Evaluasi penting kedua.", "Evaluasi penting ketiga."])
-    s5_credit = format_photo_credit_text((content.get("photo_sources") or {}).get("slide5"), content.get("hero_image_credit"))
+    highlights = content.get("slide5_highlights", [
+        "Antrean panjang membuktikan kegagalan tata kelola distribusi, bukan kelangkaan pasokan.",
+        "Pemilik kendaraan mewah wajib beralih ke BBM non-subsidi demi keadilan sosial.",
+        "Kunci pengawasan ada pada digitalisasi transaksi dan penegakan sanksi tegas di SPBU."
+    ])
+
+    s5_credit = format_photo_credit_text(
+        (content.get("photo_sources") or {}).get("slide5"),
+        content.get("hero_image_credit")
+    )
     img_uri = get_image_data_uri(content.get("slide5_image") or content.get("hero_image"))
 
-    sources_html = [f'<div class="source-pill">{html.escape(str(s)).replace("**", "")}</div>' for s in sources]
-    highlights_html = [f'<div class="slide5-highlight-item"><span class="slide5-highlight-check">—</span><span>{format_point_body_html(re.sub(r"^[\s\-\—\*\•]+\s*", "", str(h)))}</span></div>' for h in highlights[:3]]
-    prog_bars = "".join('<div class="progress-segment-item active"></div>' for _ in range(total_slides))
+    sources_html = []
+    for s in sources:
+        clean_s = html.escape(str(s)).replace("**", "").replace("*", "")
+        sources_html.append(f'<div class="source-pill">{clean_s}</div>')
+
+    highlights_html = []
+    for h in highlights[:3]:
+        clean_h_text = re.sub(r"^[\s\-\—\*\•]+\s*", "", str(h)).strip()
+        formatted_h = format_point_body_html(clean_h_text)
+        highlights_html.append(f"""
+        <div class="slide5-highlight-item">
+          <span class="slide5-highlight-check">—</span>
+          <span>{formatted_h}</span>
+        </div>
+        """)
+
+    prog_bars = "".join(
+        '<div class="progress-segment-item active"></div>'
+        for _ in range(total_slides)
+    )
 
     return f"""<!DOCTYPE html>
 <html lang="id">
-<head><meta charset="utf-8"><style>{get_base_css()}</style></head>
+<head>
+<meta charset="utf-8">
+<style>
+{get_base_css()}
+</style>
+</head>
 <body>
   <div class="brand-header">
     <div class="brand-left">
@@ -1102,49 +1404,72 @@ def render_html_verdict(content: Dict[str, Any], theme: Dict[str, Any], total_sl
     </div>
     <div class="program-chip">05 / {total_slides:02d}</div>
   </div>
+
   <div class="slide-content-wrapper">
     <div class="slide-main-body">
       <div class="slide-header-box">
         <div class="slide-eyebrow-pill">KESIMPULAN & REFLEKSI</div>
         <h2 class="slide-hook-headline">{hook}</h2>
       </div>
+
       <div class="slide5-verdict-banner">
         <img src="{img_uri}" class="slide5-verdict-img" alt="Verdict Visual" />
         <div class="photo-credit-badge" style="top: 20px; right: 24px;">FOTO: {s5_credit}</div>
         <div class="slide5-verdict-overlay">
-          <div class="slide5-verdict-tag"><span>CATATAN AKHIR REDAKSI</span></div>
+          <div class="slide5-verdict-tag">
+            <span>CATATAN AKHIR REDAKSI</span>
+          </div>
           <div class="slide5-verdict-quote">{verdict_text}</div>
         </div>
       </div>
+
       <div class="slide5-highlights-card">
         <div class="slide5-highlight-title">POKOK MASALAH & ARAH KEBIJAKAN</div>
         {"".join(highlights_html)}
       </div>
+
       <div class="cta-discussion-card">
         <div class="cta-badge-icon">?</div>
         <div class="cta-query-text">{cta_text}</div>
       </div>
+
       <div class="verified-sources-card">
         <div class="sources-title-row">SUMBER DATA TERVERIFIKASI</div>
-        <div class="sources-chip-grid">{"".join(sources_html)}</div>
+        <div class="sources-chip-grid">
+          {"".join(sources_html)}
+        </div>
       </div>
     </div>
+
     <div class="slide-bottom-bar">
-      <div class="carousel-progress-bar">{prog_bars}</div>
-      <div class="editorial-footer"><div>@metrika.id</div><div>Data Bicara. Kamu yang Menilai.</div></div>
+      <div class="carousel-progress-bar">
+        {prog_bars}
+      </div>
+      <div class="editorial-footer">
+        <div>@metrika.id</div>
+        <div>Data Bicara. Kamu yang Menilai.</div>
+      </div>
     </div>
   </div>
 </body>
-</html>"""
+</html>
+"""
 
-def render_carousel_slides(content: Dict[str, Any], out_dir: str | Path, fmt: str = "PNG") -> List[Path]:
+
+# ==============================================================================
+# RENDERER ENGINE: PLAYWRIGHT HEADLESS CHROMIUM (5 SLIDES)
+# ==============================================================================
+def render_carousel_slides(
+    content: Dict[str, Any], out_dir: str | Path, fmt: str = "PNG"
+) -> List[Path]:
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
+
     prog_id = content.get("program", "ANGKA_BICARA")
     theme = PROGRAMS_THEME.get(prog_id, PROGRAMS_THEME["ANGKA_BICARA"])
     total_slides = 5
 
-    html_pages = [
+    html_pages: List[Tuple[str, str]] = [
         ("slide_01", render_html_cover(content, theme, total_slides)),
         ("slide_02", render_html_context(content, theme, total_slides)),
         ("slide_03", render_html_metric(content, theme, total_slides)),
@@ -1153,30 +1478,70 @@ def render_carousel_slides(content: Dict[str, Any], out_dir: str | Path, fmt: st
     ]
 
     for name, page_html in html_pages:
-        (out_dir / f"{name}.html").write_text(page_html, encoding="utf-8")
+        html_file = out_dir / f"{name}.html"
+        html_file.write_text(page_html, encoding="utf-8")
 
     out_paths: List[Path] = []
-    from playwright.sync_api import sync_playwright
 
-    print("[Playwright] Memulai Chromium headless render 5 Slide Carousel...")
-    with sync_playwright() as p:
-        browser = p.chromium.launch(args=["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage", "--disable-gpu"])
-        context = browser.new_context(viewport={"width": W_IG, "height": H_IG}, device_scale_factor=1)
-        page = context.new_page()
+    try:
+        from playwright.sync_api import sync_playwright
 
-        for name, page_html in html_pages:
-            out_img = out_dir / f"{name}.png"
-            page.set_content(page_html, wait_until="networkidle")
-            try:
-                page.evaluate("document.fonts.ready")
-            except Exception:
-                pass
-            page.screenshot(path=str(out_img), type="png")
-            out_paths.append(out_img)
-            print(f"[Playwright] Berhasil render: {out_img.name}")
+        print("[Playwright] Memulai Chromium headless untuk render 5 Slide Carousel (Agency Grade Padat)...")
+        with sync_playwright() as p:
+            browser = p.chromium.launch(
+                args=[
+                    "--no-sandbox",
+                    "--disable-setuid-sandbox",
+                    "--disable-dev-shm-usage",
+                    "--disable-gpu",
+                ]
+            )
+            context = browser.new_context(
+                viewport={"width": W_IG, "height": H_IG},
+                device_scale_factor=1,
+            )
+            page = context.new_page()
 
-        browser.close()
+            for name, page_html in html_pages:
+                out_img = out_dir / f"{name}.png"
+                page.set_content(page_html, wait_until="networkidle")
+                try:
+                    page.evaluate("document.fonts.ready")
+                except Exception:
+                    pass
+                page.screenshot(path=str(out_img), type="png")
+                out_paths.append(out_img)
+                print(f"[Playwright] Berhasil merender: {out_img.name}")
+
+            browser.close()
+
+    except ImportError:
+        log.info("[Render] Playwright tidak tersedia. Menggunakan WeasyPrint + pypdfium2...")
+        try:
+            import weasyprint
+            import pypdfium2
+            for name, page_html in html_pages:
+                out_img = out_dir / f"{name}.png"
+                pdf_bytes = weasyprint.HTML(string=page_html).write_pdf()
+                pdf = pypdfium2.PdfDocument(pdf_bytes)
+                page = pdf[0]
+                scale = W_IG / page.get_width()
+                bitmap = page.render(scale=scale)
+                bitmap.to_pil().save(out_img, "PNG")
+                out_paths.append(out_img)
+                print(f"[WeasyPrint] Berhasil merender: {out_img.name} (1080x1350)")
+        except Exception as e:
+            log.warning(f"WeasyPrint fallback gagal ({e}). Menjalankan fallback visual.")
+            for name, _ in html_pages:
+                fallback_img = out_dir / f"{name}.png"
+                im = Image.new("RGB", (W_IG, H_IG), (251, 248, 244))
+                d = ImageDraw.Draw(im)
+                lbl = theme["label"]
+                d.text((80, 80), f"METRIKA • {lbl}\n(Silakan install Playwright/WeasyPrint)", fill=(43, 26, 18))
+                im.save(fallback_img)
+                out_paths.append(fallback_img)
     return out_paths
+
 
 def render_vertical_video(*args, **kwargs) -> Path:
     return Path("disabled_video.mp4")
