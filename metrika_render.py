@@ -1014,12 +1014,8 @@ def render_html_cover(content: Dict[str, Any], theme: Dict[str, Any], total_slid
   <div class="cover-photo-wrapper">
     {photo_dom}
     <div class="photo-credit-badge">FOTO: {s1_credit}</div>
-    <div class="photo-gradient-overlay">
-      <div class="photo-swipe-prompt">
-        <span class="photo-swipe-arrow">→</span>
-        Geser untuk bedah data & argumen lengkap
-      </div>
-      <div style="color:rgba(250,246,240,0.7); font-size:13px; font-weight:700;">@metrika.id</div>
+    <div class="photo-gradient-overlay" style="height: 120px; justify-content: flex-end; padding: 24px 52px;">
+      <div style="color:rgba(250,246,240,0.8); font-size:13px; font-weight:800; letter-spacing:0.06em;">@metrika.id</div>
     </div>
   </div>
 </body>
@@ -1032,7 +1028,7 @@ def render_html_cover(content: Dict[str, Any], theme: Dict[str, Any], total_slid
 # ==============================================================================
 def render_html_context(content: Dict[str, Any], theme: Dict[str, Any], total_slides: int) -> str:
     s2 = content.get("slide_context", {})
-    eyebrow = html.escape(s2.get("eyebrow", "01 / DOKUMENTASI FAKTA"))
+    eyebrow = html.escape(s2.get("eyebrow", "KRONOLOGI & PERISTIWA"))
     hook = format_hook_html(s2.get("hook", "Kenapa Masalah Ini Tiba-tiba Meledak di Lapangan?"))
     paragraphs = s2.get("paragraphs") or s2.get("points") or []
     if isinstance(paragraphs, str):
@@ -1084,19 +1080,18 @@ def render_html_context(content: Dict[str, Any], theme: Dict[str, Any], total_sl
 
       <div class="slide2-media-card">
         <img src="{img_uri}" class="slide2-media-img" alt="Dokumentasi Fakta Lapangan" />
-        <div class="slide2-media-badge">DOKUMENTASI FAKTA LAPANGAN</div>
-        <div class="photo-credit-badge">FOTO: {s2_credit}</div>
+                <div class="photo-credit-badge">FOTO: {s2_credit}</div>
       </div>
 
       <div class="slide2-narrative-card">
-        <div class="slide2-narrative-header">KRONOLOGI & INVESTIGASI LAPANGAN</div>
+        <div class="slide2-narrative-header">FAKTA DI LAPANGAN</div>
         <div class="slide2-narrative-body">
           {"".join(paragraphs_html)}
         </div>
       </div>
 
       <div class="slide2-takeaway-pill">
-        <span><b>FAKTA KUNCI:</b> {takeaway}</span>
+        <span><b>POKOK PERISTIWA:</b> {takeaway}</span>
       </div>
     </div>
 
@@ -1120,7 +1115,7 @@ def render_html_context(content: Dict[str, Any], theme: Dict[str, Any], total_sl
 # ==============================================================================
 def render_html_metric(content: Dict[str, Any], theme: Dict[str, Any], total_slides: int) -> str:
     s3 = content.get("slide_metric", {})
-    eyebrow = html.escape(s3.get("eyebrow", "02 / BEDAH DATA RISET"))
+    eyebrow = html.escape(s3.get("eyebrow", "BEDAH DATA & ANGKA"))
     hook = format_hook_html(s3.get("hook", "Berapa Triliun Rupiah yang Diam-diam Disedot dari Kantong Kita?"))
     m_val = html.escape(str(s3.get("metric_value", "Rp 150 T+")))
     m_lbl = html.escape(str(s3.get("metric_label", "estimasi alokasi anggaran energi yang rentan bocor")))
@@ -1154,12 +1149,20 @@ def render_html_metric(content: Dict[str, Any], theme: Dict[str, Any], total_sli
     m_val = html.escape(str(s3.get("metric_value", "Rp 150 T+"))).replace("**", "").replace("*", "")
     m_lbl = format_point_body_html(str(s3.get("metric_label", "estimasi alokasi anggaran energi yang rentan bocor")))
     col1_title = format_point_body_html(s3.get("col1_title", "Beban Dompet Rakyat / Ritel"))
-    col1_points = s3.get("col1_points", [])
-    col1_html = "".join(f'<div class="slide3-paragraph-text">{format_point_body_html(p)}</div>' for p in col1_points[:3])
+    col1_raw = s3.get("col1_paragraph") or s3.get("col1_points") or []
+    if isinstance(col1_raw, list):
+        col1_text = " ".join(str(p) for p in col1_raw)
+    else:
+        col1_text = str(col1_raw)
+    col1_html = f'<p class="slide3-paragraph-text">{format_point_body_html(col1_text)}</p>'
 
     col2_title = format_point_body_html(s3.get("col2_title", "Ilusi Pengawasan & Kinerja Pejabat"))
-    col2_points = s3.get("col2_points", [])
-    col2_html = "".join(f'<div class="slide3-paragraph-text">{format_point_body_html(p)}</div>' for p in col2_points[:3])
+    col2_raw = s3.get("col2_paragraph") or s3.get("col2_points") or []
+    if isinstance(col2_raw, list):
+        col2_text = " ".join(str(p) for p in col2_raw)
+    else:
+        col2_text = str(col2_raw)
+    col2_html = f'<p class="slide3-paragraph-text">{format_point_body_html(col2_text)}</p>'
 
     alert_text = format_point_body_html(s3.get("alert_text", "Setiap liter subsidi yang salah sasaran adalah hak rakyat kecil yang terampas."))
 
@@ -1232,7 +1235,7 @@ def render_html_metric(content: Dict[str, Any], theme: Dict[str, Any], total_sli
       </div>
 
       <div class="slide3-alert-banner">
-        <span><b>CATATAN AUDIT:</b> {alert_text}</span>
+        <span><b>IMPLIKASI RIIL:</b> {alert_text}</span>
       </div>
     </div>
 
@@ -1256,7 +1259,7 @@ def render_html_metric(content: Dict[str, Any], theme: Dict[str, Any], total_sli
 # ==============================================================================
 def render_html_strategy(content: Dict[str, Any], theme: Dict[str, Any], total_slides: int) -> str:
     s4 = content.get("slide_strategy", {})
-    eyebrow = html.escape(s4.get("eyebrow", "03 / SKENARIO STRATEGIS"))
+    eyebrow = html.escape(s4.get("eyebrow", "REALITA DI LAPANGAN"))
     hook = format_hook_html(s4.get("hook", "Tiga Benteng Finansial Sebelum Subsidi Makin Mengetat"))
     scenarios = s4.get("scenarios", [])
     takeaway = format_point_body_html(s4.get("takeaway", "Subsidi energi boleh menyusut, tapi strategi efisiensi biaya hidupmu tidak boleh ikut lumpuh."))
@@ -1312,8 +1315,7 @@ def render_html_strategy(content: Dict[str, Any], theme: Dict[str, Any], total_s
 
       <div class="slide4-media-card">
         <img src="{img_uri}" class="slide4-media-img" alt="Visual Strategi" />
-        <div class="slide4-media-badge">PANDUAN MITIGASI RISIKO</div>
-        <div class="photo-credit-badge">FOTO: {s4_credit}</div>
+                <div class="photo-credit-badge">FOTO: {s4_credit}</div>
       </div>
 
       <div class="slide4-scenarios-container">
@@ -1321,7 +1323,7 @@ def render_html_strategy(content: Dict[str, Any], theme: Dict[str, Any], total_s
       </div>
 
       <div class="slide4-takeaway-bar">
-        <span><b>PRINSIP UTAMA:</b> {takeaway}</span>
+        <span><b>POKOK MASALAH:</b> {takeaway}</span>
       </div>
     </div>
 
@@ -1404,7 +1406,7 @@ def render_html_verdict(content: Dict[str, Any], theme: Dict[str, Any], total_sl
   <div class="slide-content-wrapper">
     <div class="slide-main-body">
       <div class="slide-header-box">
-        <div class="slide-eyebrow-pill">04 / KESIMPULAN RISET</div>
+        <div class="slide-eyebrow-pill">KESIMPULAN & REFLEKSI</div>
         <h2 class="slide-hook-headline">{hook}</h2>
       </div>
 
@@ -1413,14 +1415,14 @@ def render_html_verdict(content: Dict[str, Any], theme: Dict[str, Any], total_sl
         <div class="photo-credit-badge" style="top: 20px; right: 24px;">FOTO: {s5_credit}</div>
         <div class="slide5-verdict-overlay">
           <div class="slide5-verdict-tag">
-            <span>VERDICT REDAKSI METRIKA</span>
+            <span>CATATAN AKHIR REDAKSI</span>
           </div>
           <div class="slide5-verdict-quote">{verdict_text}</div>
         </div>
       </div>
 
       <div class="slide5-highlights-card">
-        <div class="slide5-highlight-title">TIGA POIN INVESTIGASI UTAMA</div>
+        <div class="slide5-highlight-title">POKOK MASALAH & ARAH KEBIJAKAN</div>
         {"".join(highlights_html)}
       </div>
 
