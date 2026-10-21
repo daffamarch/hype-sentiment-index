@@ -2,12 +2,6 @@
 # -*- coding: utf-8 -*-
 """
 METRIKA Media - Automated Multi-Program Editorial System
-========================================================
-Carousel Instagram 5 slide (1080x1350) dengan FOTO NYATA di setiap slide.
-Prinsip Utama:
-- Hook Clickbait Jurnalistik Kuat & Menusuk (Stop-Scrolling Hook).
-- Zero Statistical Hallucination (Tidak ada persentase fiktif 65%).
-- Isolasi Rubrik Ketat (Kalkulator Ojol hanya di INDEKS KERINGAT).
 """
 
 import argparse
@@ -62,7 +56,6 @@ def get_now_wib() -> datetime.datetime:
 CACHE_FILE = Path("posted_links.txt")
 OUTPUT_DIR = Path("output_media")
 CAROUSEL_DIR = OUTPUT_DIR / "carousel"
-PHOTO_LIBRARY_DIR = Path(os.environ.get("PHOTO_LIBRARY_DIR", "photo_library"))
 
 SLIDE_IMG_PATHS: Dict[str, Path] = {
     "slide1": OUTPUT_DIR / "slide_01_hero.jpg",
@@ -72,35 +65,9 @@ SLIDE_IMG_PATHS: Dict[str, Path] = {
     "slide5": OUTPUT_DIR / "slide_05_verdict.jpg",
 }
 
-PEXELS_API_KEY = os.environ.get("PEXELS_API_KEY", "").strip()
-UNSPLASH_ACCESS_KEY = os.environ.get("UNSPLASH_ACCESS_KEY", "").strip()
-SMART_PHOTO = os.environ.get("SMART_PHOTO", "1").strip() != "0"
-CAND_DIR = Path("output_media") / "_cand"
-USE_REGISTRY_FALLBACK = os.environ.get("USE_REGISTRY_FALLBACK", "").strip() == "1"
-
 HTTP_HEADERS = {
-    "User-Agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-        "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
-    ),
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
     "Accept-Language": "id-ID,id;q=0.9,en;q=0.7",
-}
-
-MIN_COVER_WIDTH = 600
-MIN_REGISTRY_WIDTH = 800
-
-def _u(photo_id: str) -> str:
-    return f"https://images.unsplash.com/{photo_id}?auto=format&fit=crop&w=1200&q=80"
-
-TOPIC_IMAGE_REGISTRY: Dict[str, List[str]] = {
-    "retail": [_u("photo-1542838132-92c53300491e"), _u("photo-1578916171728-46686eac8d58")],
-    "staples": [_u("photo-1586201375761-83865001e31c"), _u("photo-1488459716781-31db52582fe9")],
-    "fuel": [_u("photo-1545454675-3531b543be5d"), _u("photo-1506521781263-d8422e82f27a")],
-    "macro": [_u("photo-1580519542036-c47de6196ba5"), _u("photo-1526304640581-d334cdbbf45e")],
-    "gold": [_u("photo-1610375461246-83df859d849d"), _u("photo-1509718443690-d8e2fb3474b7")],
-    "stocks": [_u("photo-1590283603385-17ffb3a7f29f"), _u("photo-1611974789855-9c2a0a7236a3")],
-    "automotive": [_u("photo-1533473359331-0135ef1b58bf"), _u("photo-1492144534655-ae79c964c9d7")],
-    "general": [_u("photo-1486406146926-c627a92ad1ab"), _u("photo-1578632767115-351597cf2477")],
 }
 
 GN = "https://news.google.com/rss"
@@ -118,18 +85,18 @@ def get_daily_program_config() -> Dict[str, Any]:
             "feeds": [
                 f"{GN}/search?q=harga+beras+OR+harga+sembako+OR+minyak+goreng+OR+bapanas+OR+pasar+tradisional&hl=id&gl=ID&ceid=ID:id",
                 f"{GN}/search?q=pertalite+OR+antrean+spbu+OR+lpg+3kg+OR+subsidi+bbm+OR+tarif+listrik&hl=id&gl=ID&ceid=ID:id",
-                f"{GN}/search?q=daya+beli+OR+gaji+umr+OR+phk+buruh+OR+biaya+hidup&hl=id&gl=ID&ceid=ID:id",
+                f"{GN}/search?q=daya+beli+OR+gaji+umr+OR+phk+buruh+OR+alfamart+OR+indomaret+OR+biaya+hidup&hl=id&gl=ID&ceid=ID:id",
                 "https://www.antaranews.com/rss/ekonomi.xml",
                 "https://rss.detik.com/index.php/finance",
             ],
-            "sources": ["Badan Pusat Statistik (BPS)", "Badan Pangan Nasional (Bapanas)", "Kepgub DKI No. 1026/2024"],
+            "sources": ["Badan Pusat Statistik (BPS)", "Badan Pangan Nasional (Bapanas)", "Kementerian ESDM RI", "Kepgub DKI (UMP Rp 5.396.763)"],
         }
     if p_id == "RADAR_SENTIMEN":
         return {
             "id": p_id, "name": "RADAR SENTIMEN", "subtitle": "PETA POLARISASI OPINI PUBLIK",
             "feeds": [
                 f"{GN}/headlines/section/topic/NATION?hl=id&gl=ID&ceid=ID:id",
-                f"{GN}/search?q=kebijakan+pemerintah+OR+kritik+pejabat+OR+pro+kontra+anggaran&hl=id&gl=ID&ceid=ID:id",
+                f"{GN}/search?q=kebijakan+pemerintah+OR+kritik+pejabat+OR+pro+kontra+anggaran+OR+bansos&hl=id&gl=ID&ceid=ID:id",
                 "https://www.cnbcindonesia.com/news/rss",
                 "https://www.antaranews.com/rss/terkini.xml",
             ],
@@ -139,8 +106,9 @@ def get_daily_program_config() -> Dict[str, Any]:
         "id": "ANGKA_BICARA", "name": "ANGKA BICARA", "subtitle": "DATA STORYTELLING & GAYA HIDUP",
         "feeds": [
             f"{GN}/headlines/section/topic/BUSINESS?hl=id&gl=ID&ceid=ID:id",
-            f"{GN}/search?q=ihsg+OR+saham+OR+bursa+efek+OR+ojk+OR+rupiah+tembus&hl=id&gl=ID&ceid=ID:id",
+            f"{GN}/search?q=ihsg+OR+saham+OR+bursa+efek+OR+ojk+OR+rupiah+tembus+OR+harga+emas&hl=id&gl=ID&ceid=ID:id",
             "https://www.cnbcindonesia.com/market/rss",
+            "https://www.cnbcindonesia.com/news/rss",
             "https://rss.detik.com/index.php/finance",
         ],
         "sources": ["Bank Indonesia (BI)", "Badan Pusat Statistik (BPS)", "Bursa Efek Indonesia (IDX)"],
@@ -150,74 +118,132 @@ def clean_html(raw_html: str) -> str:
     text = re.sub(r"<.*?>", " ", raw_html or "")
     return re.sub(r"\s+", " ", htmllib.unescape(text)).strip()
 
+def load_posted_links() -> set:
+    if not CACHE_FILE.exists():
+        CACHE_FILE.write_text("", encoding="utf-8")
+        return set()
+    return {ln.strip() for ln in CACHE_FILE.read_text(encoding="utf-8").splitlines() if ln.strip()}
+
+def save_posted_link(link: str) -> None:
+    with CACHE_FILE.open("a", encoding="utf-8") as f:
+        f.write(f"{link.strip()}\n")
+
 def fetch_candidates(prog_cfg: Dict[str, Any]) -> List[Dict[str, str]]:
+    posted = load_posted_links()
+    seen_titles: set = set()
     out: List[Dict[str, str]] = []
     if feedparser is None:
-        return out
-    for rss_url in prog_cfg["feeds"]:
-        try:
-            feed = feedparser.parse(rss_url, request_headers=HTTP_HEADERS)
-            for entry in feed.entries[:15]:
-                link = (entry.get("link") or "").strip()
-                title = (entry.get("title") or "").strip()
-                if not link or not title:
-                    continue
-                out.append({"title": title, "link": link, "summary": clean_html(entry.get("summary", ""))})
-        except Exception:
-            pass
+        print("[RSS] feedparser belum terpasang.")
+    else:
+        for rss_url in prog_cfg["feeds"]:
+            try:
+                feed = feedparser.parse(rss_url, request_headers=HTTP_HEADERS)
+                for entry in feed.entries[:15]:
+                    link = (entry.get("link") or "").strip()
+                    title = (entry.get("title") or "").strip()
+                    key = re.sub(r"\W+", "", title.lower())[:60]
+                    if not link or not title or link in posted or key in seen_titles:
+                        continue
+                    summary_text = clean_html(entry.get("summary", ""))
+                    seen_titles.add(key)
+                    out.append({"title": title, "link": link, "summary": summary_text, "published": entry.get("published", "")})
+            except Exception as err:
+                print(f"[RSS] Feed dilewati: {err}")
     return out
 
 def resolve_google_news_url(url: str) -> str:
     if "news.google.com" not in url:
         return url
-    try:
-        r = requests.get(url, headers=HTTP_HEADERS, timeout=12, allow_redirects=True)
-        return r.url
-    except Exception:
+    m = re.search(r"/articles/([^?/#]+)", url)
+    if not m:
         return url
+    art_id = m.group(1)
+    try:
+        raw = base64.urlsafe_b64decode(art_id + "=" * (-len(art_id) % 4))
+        mm = re.search(rb"https?://[^\x00-\x20\"'<>\x7f-\xff]+", raw)
+        if mm and b"news.google.com" not in mm.group(0):
+            return mm.group(0).decode("utf-8", "ignore")
+    except Exception:
+        pass
+    return url
+
+META_RE = re.compile(r"<meta\s+[^>]*>", re.I)
+ATTR_RE = re.compile(r'([\w:-]+)\s*=\s*(?:"([^"]*)"|\'([^\']*)\')')
+OG_KEYS = ("og:image:secure_url", "og:image", "og:image:url", "twitter:image")
+
+def download_image(url: str, path: Path, min_width: int = 600) -> bool:
+    try:
+        r = requests.get(url, headers=HTTP_HEADERS, timeout=15)
+        if r.status_code != 200 or len(r.content) < 10_000:
+            return False
+        im = ImageOps.exif_transpose(Image.open(io.BytesIO(r.content))).convert("RGB")
+        if im.width < min_width:
+            return False
+        path.parent.mkdir(parents=True, exist_ok=True)
+        im.save(path, format="JPEG", quality=92)
+        return True
+    except Exception:
+        return False
 
 def fetch_cover_from_article(article_url: str, dest: Path) -> Optional[str]:
     try:
-        r = requests.get(article_url, headers=HTTP_HEADERS, timeout=12)
-        if r.status_code == 200:
-            m = re.search(r'<meta[^>]+property=[\x27"]og:image[\x27"][^>]+content=[\x27"]([^\x27"]+)[\x27"]', r.text, re.I)
-            if m:
-                img_url = m.group(1)
-                r_img = requests.get(img_url, headers=HTTP_HEADERS, timeout=12)
-                if r_img.status_code == 200 and len(r_img.content) > 10000:
-                    dest.write_bytes(r_img.content)
-                    return urlparse(article_url).netloc.replace("www.", "")
-    except Exception:
-        pass
+        r = requests.get(article_url, headers=HTTP_HEADERS, timeout=15, allow_redirects=True)
+        final = r.url
+        host = urlparse(final).netloc.lower().replace("www.", "")
+        if r.status_code != 200:
+            return None
+        found = {}
+        for tag in META_RE.findall(r.text[:400000]):
+            attrs = {}
+            for m in ATTR_RE.finditer(tag):
+                attrs[m.group(1).lower()] = htmllib.unescape(m.group(2) if m.group(2) is not None else m.group(3))
+            key = (attrs.get("property") or attrs.get("name") or "").lower()
+            val = (attrs.get("content") or "").strip()
+            if key in OG_KEYS and val and key not in found:
+                found[key] = val
+        for k in OG_KEYS:
+            if k in found and download_image(urljoin(final, found[k]), dest):
+                return host
+    except Exception as err:
+        print(f"[Cover] Gagal ambil og:image: {err}")
     return None
 
-def extract_numeric_price(text: str) -> float:
-    digits = re.sub(r"[^\d]", "", str(text or ""))
-    if digits:
-        try:
-            return float(digits)
-        except ValueError:
-            pass
-    return 17000.0
+def select_news_with_cover(candidates: List[Dict[str, str]]) -> Tuple[Dict[str, str], List[str]]:
+    if not candidates:
+        candidates = [{
+            "title": "Evaluasi Stabilisasi Pasokan dan Perkembangan Kebutuhan Pokok",
+            "link": f"https://metrika.id/fallback/{get_now_wib().date()}",
+            "summary": "Pemerintah memantau jalur logistik dan stabilitas harga komoditas pangan pokok di pasar eceran.",
+            "published": str(get_now_wib().date()),
+        }]
+    chosen = candidates[0]
+    for item in candidates[:6]:
+        real = resolve_google_news_url(item["link"])
+        domain = fetch_cover_from_article(real, SLIDE_IMG_PATHS["slide1"])
+        if domain:
+            item["cover_credit"] = domain
+            item["real_link"] = real
+            chosen = item
+            print(f"[Cover] og:image berhasil dari {domain}: {item['title'][:70]}")
+            break
+    supporting = [c["title"] for c in candidates if c != chosen][:4]
+    return chosen, supporting
 
-def compute_indeks_keringat(price: float) -> Dict[str, str]:
-    ojol_trip_net = 12500.0
-    ojol_trips = max(1.0, round(price / ojol_trip_net, 1))
-    ojol_hours = max(0.5, round(ojol_trips * 0.75, 1))
+def make_placeholder(path: Path) -> None:
+    im = Image.new("RGB", (1200, 800), color=(43, 26, 18))
+    path.parent.mkdir(parents=True, exist_ok=True)
+    im.save(path, format="JPEG", quality=90)
 
-    umr_daily = 5396763.0 / 22.0
-    umr_hourly = umr_daily / 8.0
-    umr_hours = max(0.2, round(price / umr_hourly, 1))
-    umr_days = max(0.1, round(price / umr_daily, 2))
-
-    dpr_minute = (60000000.0 / 22.0 / 8.0) / 60.0
-    dpr_minutes = max(1.0, round(price / dpr_minute, 1))
-
-    return {
-        "ojol": f"{ojol_trips:g} trip narik ({ojol_hours:g} jam di aspal)",
-        "umr": f"{umr_hours:g} jam kerja ({umr_days:g} hari kerja)",
-        "dpr": f"{dpr_minutes:g} menit kerja di ruang sidang",
-    }
+def prepare_images(news_item: Dict[str, str]) -> Dict[str, Path]:
+    cover = SLIDE_IMG_PATHS["slide1"]
+    if not cover.exists():
+        make_placeholder(cover)
+    for k in ("slide2", "slide3", "slide4", "slide5"):
+        target = SLIDE_IMG_PATHS[k]
+        if not target.exists():
+            shutil.copyfile(cover, target)
+            news_item.setdefault("photo_sources", {})[k] = news_item.get("cover_credit") or "Dokumentasi Media"
+    return dict(SLIDE_IMG_PATHS)
 
 def generate_metric_svg_chart(chart_title: str, items: list) -> Optional[str]:
     if not items or len(items) < 2:
@@ -248,89 +274,118 @@ def generate_metric_svg_chart(chart_title: str, items: list) -> Optional[str]:
     except Exception:
         return None
 
-def ensure_chart_data(analysis: Dict[str, Any], prog_id: str, news_title: str) -> Dict[str, Any]:
-    cd = analysis.get("chart_data")
-    if isinstance(cd, dict) and cd.get("items") and isinstance(cd["items"], list) and len(cd["items"]) >= 2:
-        return cd
+def extract_numeric_price(text: str) -> float:
+    digits = re.sub(r"[^\d]", "", str(text or ""))
+    return float(digits) if digits else 17500.0
 
-    if prog_id == "INDEKS_KERINGAT":
-        price = extract_numeric_price(analysis.get("hero_value", "17500"))
-        k = compute_indeks_keringat(price)
-        return {
-            "title": "BEBAN WAKTU KERJA UNTUK 1 UNIT BARANG",
-            "items": [
-                {"label": "Driver Ojol (Jam di Aspal)", "val_str": k["ojol"].split("(")[0].strip(), "val": 6.2},
-                {"label": "Buruh UMR (Jam Kerja Kantor)", "val_str": "3.4 Jam", "val": 3.4},
-                {"label": "Anggota DPR (Menit Kerja)", "val_str": "18.3 Menit", "val": 0.3}
-            ]
-        }
-    elif prog_id == "RADAR_SENTIMEN":
-        return {
-            "title": "FOKUS AUDIT KEBIJAKAN VS REALITA",
-            "items": [
-                {"label": "Klaim Rilis Kebijakan", "val_str": "Target Rapat", "val": 50.0},
-                {"label": "Sorotan Temuan Lapangan", "val_str": "Realisasi Tertahan", "val": 50.0}
-            ]
-        }
-    else:
-        return {
-            "title": "DATA AUDIT PASAR KEUANGAN",
-            "items": [
-                {"label": "Surat Utang Negara", "val_str": "Defensif", "val": 60.0},
-                {"label": "Pasar Saham Ekuitas", "val_str": "Volatil", "val": 40.0}
-            ]
-        }
+def compute_indeks_keringat(price: float) -> Dict[str, str]:
+    ojol_trips = max(1.0, round(price / 12500.0, 1))
+    ojol_hours = max(0.5, round(ojol_trips * 0.75, 1))
+    umr_hours = max(0.2, round(price / (5396763.0 / 22.0 / 8.0), 1))
+    dpr_minutes = max(1.0, round(price / ((60000000.0 / 22.0 / 8.0) / 60.0), 1))
+    return {
+        "ojol": f"{ojol_trips:g} trip narik ({ojol_hours:g} jam di aspal)",
+        "umr": f"{umr_hours:g} jam kerja",
+        "dpr": f"{dpr_minutes:g} menit di ruang rapat",
+    }
 
-def build_instructions(prog_cfg: Optional[Dict[str, Any]] = None) -> str:
-    prog_id = (prog_cfg or {}).get("id", "INDEKS_KERINGAT")
-    return f"""
-Kamu adalah Jurnalis Data & Produser Eksekutif media investigasi independen "{MEDIA_NAME}".
-Misi: Ubah berita harian menjadi konten visual jurnalisme modern dengan copywriting berita mengalir, berbobot, tajam, dan 100% BEBAS DARI KLISE AI-SLOP SERTA TANPA EMOJI/EMOTIKON.
+def analyze_with_gemini(news_item: Dict[str, str], prog_cfg: Dict[str, Any]) -> Dict[str, Any]:
+    if not GEMINI_API_KEY:
+        raise EnvironmentError("GEMINI_API_KEY belum terpasang di GitHub Secrets!")
 
-PROGRAM AKTIF: {prog_id}
+    prog_id = prog_cfg["id"]
+    prompt = f"""
+Kamu adalah Jurnalis Data METRIKA (@metrika.id).
+Ubah berita ini menjadi konten carousel 5 slide:
+Judul: {news_item['title']}
+Ringkasan: {news_item.get('summary', '')}
+Program: {prog_cfg['name']} ({prog_cfg['subtitle']})
 
-ATURAN INTEGRITAS DATA & ANTI-HALUSINASI:
-1. ZERO STATISTICAL HALLUCINATION:
-   - DILARANG KERAS MENGARANG ANGKA PERSENTASE (%) ATAU SURVEI FIKTIF! Contoh: jika berita tentang sidang kabinet atau pidato pejabat tidak menyebut survei "65% masyarakat", KAMU DILARANG KERAS MENCIPTAKAN ANGKA PERSENTASE APAPUN.
-   - Kolom "hero_value" HANYA boleh diisi angka nominal yang BENAR-BENAR TERCANTUM di berita (misal: "Rp 104.000/kg", "Rp 150 Triliun", "2 Tahun"). Jika berita adalah pernyataan kualitatif/pidato tanpa angka, isi "hero_value": "" (string kosong) dan "hero_label": "".
-2. FORMULA JUDUL / HOOK CLICKBAIT JURNALISTIK TINGKAT TINGGI (SLIDE 1):
-   - Hook HARUS memiliki daya cengkeram instan (Stop-Scrolling Hook), tajam, provokatif, namun 100% didasarkan pada fakta berita riil (tanpa mengarang angka fiktif).
-   - Terapkan salah satu dari 3 formula clickbait data kelas agensi:
-     a. TENSION / KONTRAS IRONIS: "Pidato Pejabat Menggelegar, <red>Fakta Dompet Rakyat</red> Masih Gemetar"
-     b. PERTANYAAN RETORIS MENGGUGAT: "Target Swasembada Digembar-Gemborkan, <red>Kenapa Beras Rakyat</red> Malah Makin Langka?"
-     c. REVELATION / FAKTA TERSEMBUNYI: "Di Balik Seremoni Rapat Paripurna: <red>Beban Pengeluaran Warga</red> Tak Masuk Agenda?"
-   - Maksimal 80-85 karakter. Wajib bungkus 2-4 kata kunci emosional / paling menggigit dengan tag <red>...</red> agar menyala merah di poster cover.
-3. ISOLASI RUBRIK KETAT:
-   - Rubrik INDEKS KERINGAT: Khusus komparasi daya beli harga sembako/lifestyle vs jam kerja.
-   - Rubrik RADAR SENTIMEN: Murni analisis transparansi wacana & respon masyarakat. DILARANG memasukkan ojol/keringat ke rubrik ini!
-   - Rubrik ANGKA BICARA: Khusus data bursa, kurs mata uang, dan makroekonomi.
+PEDOMAN INTEGRITAS:
+- DILARANG mencantumkan angka persentase fiktif jika tidak tercantum di rilis berita asli.
+- Rubrik {prog_id}: jangan campurkan jam kerja ojol jika bukan INDEKS_KERINGAT.
+- Buat hook clickbait tajam, bungkus 2-4 kata kunci penting dengan <red>...</red>.
+- 100% bebas dari emoji.
 
-Kembalikan HANYA JSON murni tanpa markdown.
+Format JSON murni:
+{{
+  "hook": "Judul Clickbait Tajam <red>Kata Kunci Merah</red>",
+  "caption_lead": "Lead pembuka berita lugas (40-60 kata).",
+  "caption_body": "Uraian fakta berita dan dampaknya (50-70 kata).",
+  "caption_closing": "Gimana menurut lo soal fenomena ini? Tulis pendapat lo di komentar.",
+  "hero_value": "Rp 104.000/kg",
+  "hero_label": "harga riil di tingkat pasar eceran",
+  "slide2_eyebrow": "KRONOLOGI & PERISTIWA",
+  "slide2_hook": "Pertanyaan tajam penahan scroll",
+  "slide2_paragraphs": ["Paragraf kronologi 1...", "Paragraf kronologi 2..."],
+  "slide2_takeaway": "Catatan ringkas atas peristiwa.",
+  "slide3_eyebrow": "BEDAH DATA & ANGKA",
+  "slide3_hook": "Judul slide 3 penahan scroll",
+  "slide3_metric_value": "Rp 104.000",
+  "slide3_metric_label": "estimasi beban riil",
+  "slide3_col1_title": "Pilar Lapangan",
+  "slide3_col1_paragraph": "Penjelasan kondisi lapangan...",
+  "slide3_col2_title": "Pilar Kebijakan",
+  "slide3_col2_paragraph": "Penjelasan respon dinas/pemerintah...",
+  "slide3_alert_text": "Catatan evaluasi kebijakan...",
+  "chart_data": {{
+    "title": "KOMPARASI DATA AUDIT",
+    "items": [
+      {{"label": "Kondisi Nyata Lapangan", "val_str": "Rp 104.000", "val": 104.0}},
+      {{"label": "Patokan Acuan Regulasi", "val_str": "Rp 55.000", "val": 55.0}}
+    ]
+  }},
+  "slide4_eyebrow": "REALITA DI LAPANGAN",
+  "slide4_hook": "Tiga Realita Lapangan yang Dihadapi",
+  "slide4_scenarios": [
+    {{"tag": "MASYARAKAT BAWAH", "text": "**Pekerja Informal:** Penjelasan kondisi nyata..."}},
+    {{"tag": "MANUVER BIROKRASI", "text": "**Langkah Regulator:** Penjelasan respon birokrasi..."}},
+    {{"tag": "REALITA KEBIJAKAN", "text": "**Evaluasi Kebijakan:** Celah aturan..."}}
+  ],
+  "slide4_takeaway": "Kesimpulan realita lapangan.",
+  "slide5_eyebrow": "KESIMPULAN & REFLEKSI",
+  "slide5_hook": "Refleksi Akhir: <red>Bukan Sekadar Angka</red>",
+  "verdict": "Catatan reflektif penutup redaksi yang tegas.",
+  "slide5_highlights": [
+    "Evaluasi konkret pertama.",
+    "Evaluasi konkret kedua.",
+    "Evaluasi konkret ketiga."
+  ],
+  "cta": "Pertanyaan reflektif untuk memantik diskusi audiens?",
+  "sources": ["Portal Berita Terverifikasi Dewan Pers"]
+}}
 """
+    payload = {
+        "contents": [{"parts": [{"text": prompt}]}],
+        "generationConfig": {"temperature": 0.3, "responseMimeType": "application/json"},
+    }
+    for model_name in PREFERRED_GEMINI_MODELS:
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={GEMINI_API_KEY}"
+        try:
+            res = requests.post(url, json=payload, timeout=45)
+            if res.status_code == 200:
+                raw = res.json()["candidates"][0]["content"]["parts"][0]["text"]
+                cleaned = re.sub(r"^```(?:json)?\s*|\s*```$", "", raw.strip())
+                return strip_emoji_deep(json.loads(cleaned))
+        except Exception:
+            continue
+    raise RuntimeError("Semua model Gemini gagal dihubungi.")
 
 def build_metrika_content(analysis: Dict[str, Any], prog_cfg: Dict[str, Any], images: Dict[str, Path], news_item: Dict[str, str]) -> Dict[str, Any]:
     a = analysis
-    cd = ensure_chart_data(a, prog_cfg["id"], news_item.get("title", ""))
+    cd = a.get("chart_data") or {"title": "DATA AUDIT", "items": [{"label": "Realisasi Lapangan", "val_str": "Riil", "val": 1.0}, {"label": "Target Otoritas", "val_str": "Target", "val": 1.0}]}
     chart_svg = generate_metric_svg_chart(cd.get("title", "KOMPARASI DATA AUDIT"), cd.get("items", []))
-    
-    is_keringat = (prog_cfg["id"] == "INDEKS_KERINGAT")
-    if is_keringat:
-        price_val = extract_numeric_price(str(a.get("hero_value", a.get("slide3_metric_value", "17000"))))
-        keringat_calc = compute_indeks_keringat(price_val)
-    else:
-        keringat_calc = {}
+    price_val = extract_numeric_price(str(a.get("hero_value", "17500")))
+    keringat_calc = compute_indeks_keringat(price_val)
 
     return {
         "program": prog_cfg["id"],
         "date": get_now_wib().strftime("%d %b %Y"),
-        "hook": a.get("hook", "Pidato Pejabat Menggelegar di Istana, <red>Fakta Dompet Rakyat</red> Masih Terjepit?"),
+        "hook": a.get("hook", "Analisis Data Hari Ini"),
         "caption_lead": a.get("caption_lead", news_item.get("summary", "")),
         "caption_body": a.get("caption_body", ""),
-        "caption_closing": a.get("caption_closing", a.get("cta", "")),
-        "hero": {
-            "value": a.get("hero_value", ""),
-            "label": a.get("hero_label", ""),
-        },
+        "caption_closing": a.get("caption_closing", "Tulis pendapatmu di kolom komentar."),
+        "hero": {"value": a.get("hero_value", ""), "label": a.get("hero_label", "")},
         "hero_image": str(images["slide1"]),
         "hero_image_credit": news_item.get("cover_credit", ""),
         "photo_sources": news_item.get("photo_sources", {}),
@@ -340,9 +395,141 @@ def build_metrika_content(analysis: Dict[str, Any], prog_cfg: Dict[str, Any], im
         "slide5_image": str(images["slide5"]),
         "chart_svg": chart_svg,
         "keringat_calc": keringat_calc,
-        "slide_context": a.get("slide_context", {}),
-        "slide_metric": a.get("slide_metric", {}),
-        "slide_strategy": a.get("slide_strategy", {}),
-        "verdict": a.get("verdict", "Data berbicara lebih jujur daripada opini; publik berhak atas transparansi yang nyata."),
+        "slide_context": {
+            "eyebrow": a.get("slide2_eyebrow", "KRONOLOGI & PERISTIWA"),
+            "hook": a.get("slide2_hook", "Kenapa Isu Ini Muncul?"),
+            "paragraphs": a.get("slide2_paragraphs", [news_item.get("summary", "")]),
+            "takeaway": a.get("slide2_takeaway", "Pokok peristiwa lapangan."),
+        },
+        "slide_metric": {
+            "eyebrow": a.get("slide3_eyebrow", "BEDAH DATA & ANGKA"),
+            "hook": a.get("slide3_hook", "Bedah Angka Kunci"),
+            "metric_value": a.get("slide3_metric_value", a.get("hero_value", "")),
+            "metric_label": a.get("slide3_metric_label", ""),
+            "col1_title": a.get("slide3_col1_title", "Pilar Lapangan"),
+            "col1_paragraph": a.get("slide3_col1_paragraph", ""),
+            "col2_title": a.get("slide3_col2_title", "Pilar Kebijakan"),
+            "col2_paragraph": a.get("slide3_col2_paragraph", ""),
+            "alert_text": a.get("slide3_alert_text", "Catatan evaluasi kebijakan."),
+        },
+        "slide_strategy": {
+            "eyebrow": a.get("slide4_eyebrow", "REALITA DI LAPANGAN"),
+            "hook": a.get("slide4_hook", "Realita yang Dihadapi"),
+            "scenarios": a.get("slide4_scenarios", []),
+            "takeaway": a.get("slide4_takeaway", "Pokok masalah riil."),
+        },
+        "slide5_eyebrow": a.get("slide5_eyebrow", "KESIMPULAN & REFLEKSI"),
+        "slide5_hook": a.get("slide5_hook", "Refleksi Akhir"),
+        "verdict": a.get("verdict", "Catatan penutup redaksi."),
+        "slide5_highlights": a.get("slide5_highlights", []),
+        "cta": a.get("cta", "Gimana menurut lo?"),
         "sources": a.get("sources") or prog_cfg["sources"],
     }
+
+def send_outputs_to_telegram(carousel_paths: List[Path], content: Dict[str, Any], news_item: Dict[str, str]) -> None:
+    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
+        print("[Telegram] TELEGRAM_BOT_TOKEN atau TELEGRAM_CHAT_ID belum diset di GitHub Secrets!")
+        return
+
+    base_url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}"
+    clean_h = strip_emoji(re.sub(r"</?red>", "", content["hook"]))
+    lead = content.get("caption_lead", "")
+    body = content.get("caption_body", "")
+    closing = content.get("caption_closing", "Tulis pendapat lo di komentar.")
+    credit = content.get("hero_image_credit") or "Dokumentasi Media"
+    news_link = news_item.get("real_link") or news_item["link"]
+
+    keringat_lines = ""
+    if content.get("program") == "INDEKS_KERINGAT":
+        k = content.get("keringat_calc", {})
+        if k:
+            keringat_lines = (
+                f"\n\n<b>Beban Waktu Kerja untuk Menebus Ini:</b>\n"
+                f"• Driver Ojol: {k.get('ojol', '-')}\n"
+                f"• Buruh UMR: {k.get('umr', '-')}\n"
+                f"• Pejabat / Anggota DPR: {k.get('dpr', '-')}"
+            )
+
+    full_caption = (
+        f"<b>{clean_h}</b>\n\n"
+        f"{lead}\n\n"
+        f"{body}"
+        f"{keringat_lines}\n\n"
+        f"{closing}\n\n"
+        f"Sumber Foto: {credit}\n"
+        f"Sumber Berita: <a href=\"{news_link}\">Liputan Lengkap</a>"
+    )[:1020]
+
+    if carousel_paths:
+        with open(carousel_paths[0], "rb") as f_img:
+            r = requests.post(
+                f"{base_url}/sendPhoto",
+                data={"chat_id": TELEGRAM_CHAT_ID, "caption": full_caption, "parse_mode": "HTML"},
+                files={"photo": f_img},
+                timeout=60,
+            )
+            if r.status_code == 200:
+                print("[Telegram] Sukses kirim Single Photo Cover ke Telegram!")
+            else:
+                print(f"[Telegram] Gagal kirim foto: {r.text}")
+
+    if len(carousel_paths) > 1:
+        album_caption = f"<b>[CAROUSEL 5 SLIDE]</b>\n\n<b>{clean_h}</b>\n\n<i>Geser untuk membaca narasi visual lengkap (Slide 1–5).</i>"
+        media_group, files_payload = [], {}
+        for idx, img_path in enumerate(carousel_paths):
+            key = f"slide_{idx}"
+            files_payload[key] = img_path.open("rb")
+            item = {"type": "photo", "media": f"attach://{key}"}
+            if idx == 0:
+                item["caption"] = album_caption
+                item["parse_mode"] = "HTML"
+            media_group.append(item)
+
+        try:
+            r_album = requests.post(
+                f"{base_url}/sendMediaGroup",
+                data={"chat_id": TELEGRAM_CHAT_ID, "media": json.dumps(media_group)},
+                files=files_payload,
+                timeout=120,
+            )
+            if r_album.status_code == 200:
+                print("[Telegram] Sukses kirim Album Carousel ke Telegram!")
+            else:
+                print(f"[Telegram] Gagal kirim carousel: {r_album.text}")
+        finally:
+            for f in files_payload.values():
+                f.close()
+
+def main() -> None:
+    prog_cfg = get_daily_program_config()
+    print("=" * 72)
+    print(f"MEMULAI PIPELINE: {MEDIA_NAME.upper()} | {prog_cfg['name']}")
+    print("=" * 72)
+
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    CAROUSEL_DIR.mkdir(parents=True, exist_ok=True)
+
+    candidates = fetch_candidates(prog_cfg)
+    news_item, supporting = select_news_with_cover(candidates)
+    analysis = analyze_with_gemini(news_item, prog_cfg)
+    images = prepare_images(news_item)
+    content = build_metrika_content(analysis, prog_cfg, images, news_item)
+
+    (OUTPUT_DIR / "latest_analysis.json").write_text(
+        json.dumps(content, indent=2, ensure_ascii=False), encoding="utf-8"
+    )
+
+    print("[Render] Merender 5 slide carousel via Playwright...")
+    carousel_files = render_carousel_slides(content, CAROUSEL_DIR)
+    print(f"[Render] Sukses: {len(carousel_files)} slide tersimpan.")
+
+    send_outputs_to_telegram(carousel_files, content, news_item)
+    save_posted_link(news_item["link"])
+    print("PIPELINE SELESAI DENGAN SUKSES!")
+
+if __name__ == "__main__":
+    try:
+        main()
+    except Exception as err:
+        print(f"[ERROR] Pipeline gagal: {err}", file=sys.stderr)
+        sys.exit(1)
